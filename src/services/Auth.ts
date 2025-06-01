@@ -206,12 +206,12 @@ export class AuthService {
 
     const resetToken = crypto.randomBytes(32).toString('hex');
     user.passwordResetToken = crypto.createHash('sha256').update(resetToken).digest('hex');
-    user.passwordResetExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+    user.passwordResetExpires = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes
     await user.save();
 
     try {
       // Send email with resetToken (the unhashed one)
-      const resetURL = `${process.env.FRONTEND_URL}/auth/reset-password?token=${resetToken}`;      await NotificationService.sendEmail(
+      const resetURL = `http://localhost:3000/reset-password/${resetToken}`;      await NotificationService.sendEmail(
           user.email, 
           'Password Reset Request - FAAN Parking', 
           NotificationService.getPasswordResetTemplate(resetURL)
