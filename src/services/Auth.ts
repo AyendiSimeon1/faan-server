@@ -232,8 +232,7 @@ export class AuthService {
     const user = await UserModel.findOne({
       passwordResetToken: hashedToken,
       passwordResetExpires: { $gt: Date.now() },
-    }).select('+password'); // Need to select password to allow pre-save hook to run
-
+    }).select('+password'); 
     if (!user) {
       throw new AppError('Password reset token is invalid or has expired.', 400);
     }

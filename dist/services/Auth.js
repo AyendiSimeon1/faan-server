@@ -231,7 +231,7 @@ class AuthService {
             const user = yield User_1.default.findOne({
                 passwordResetToken: hashedToken,
                 passwordResetExpires: { $gt: Date.now() },
-            }).select('+password'); // Need to select password to allow pre-save hook to run
+            }).select('+password');
             if (!user) {
                 throw new AppError_1.default('Password reset token is invalid or has expired.', 400);
             }
