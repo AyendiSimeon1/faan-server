@@ -62,7 +62,7 @@ exports.forgotPassword = (0, asyncHandler_1.default)((req, res) => __awaiter(voi
     res.status(200).json({ status: 'success', data: result });
 }));
 exports.resetPassword = (0, asyncHandler_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    const resetPasswordDto = Object.assign(Object.assign({}, req.body), { resetToken: req.params.token });
+    const resetPasswordDto = Object.assign(Object.assign({}, req.body), { token: req.params.token });
     const result = yield Auth_1.AuthService.resetPassword(resetPasswordDto);
     res.status(200).json({ status: 'success', data: result });
 }));

@@ -225,10 +225,9 @@ export class AuthService {
       throw new AppError('There was an error sending the password reset email. Please try again.', 500);
     }
   }
-  
-  static async resetPassword(resetPasswordDto: ResetPasswordDto): Promise<{ message: string }> {
-    const { resetToken, newPassword_field } = resetPasswordDto;
-    const hashedToken = crypto.createHash('sha256').update(resetToken).digest('hex');
+    static async resetPassword(resetPasswordDto: ResetPasswordDto): Promise<{ message: string }> {
+    const { token, newPassword_field } = resetPasswordDto;
+    const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
 
     const user = await UserModel.findOne({
       passwordResetToken: hashedToken,

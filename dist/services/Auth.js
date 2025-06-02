@@ -226,8 +226,8 @@ class AuthService {
     }
     static resetPassword(resetPasswordDto) {
         return __awaiter(this, void 0, void 0, function* () {
-            const { resetToken, newPassword_field } = resetPasswordDto;
-            const hashedToken = crypto_1.default.createHash('sha256').update(resetToken).digest('hex');
+            const { token, newPassword_field } = resetPasswordDto;
+            const hashedToken = crypto_1.default.createHash('sha256').update(token).digest('hex');
             const user = yield User_1.default.findOne({
                 passwordResetToken: hashedToken,
                 passwordResetExpires: { $gt: Date.now() },

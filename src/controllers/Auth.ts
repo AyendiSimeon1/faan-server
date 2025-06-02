@@ -54,8 +54,7 @@ export const forgotPassword = asyncHandler(async (req: Request, res: Response) =
   res.status(200).json({ status: 'success', data: result });
 });
 
-export const resetPassword = asyncHandler(async (req: Request, res: Response) => {
-  const resetPasswordDto: ResetPasswordDto = { ...req.body, resetToken: req.params.token };
+export const resetPassword = asyncHandler(async (req: Request, res: Response) => {  const resetPasswordDto: ResetPasswordDto = { ...req.body, token: req.params.token };
   const result = await AuthService.resetPassword(resetPasswordDto);
   res.status(200).json({ status: 'success', data: result });
 });

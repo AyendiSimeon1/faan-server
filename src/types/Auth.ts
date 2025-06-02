@@ -23,7 +23,7 @@ export interface ForgotPasswordDto {
 }
 
 export interface ResetPasswordDto {
-  resetToken: string;
+  token: string;
   newPassword_field: string;
 }
 
