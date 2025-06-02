@@ -67,20 +67,20 @@ function startServer() {
         process.exit(1);
     });
     // Graceful shutdown
-    process.on('SIGTERM', () => {
-        console.log('🔄 SIGTERM received. Starting graceful shutdown...');
-        server.close(() => {
-            console.log('💤 HTTP server closed');
-            mongoose_1.default.connection.close(false)
-                .then(() => {
-                console.log('📦 MongoDB connection closed');
-                process.exit(0);
-            })
-                .catch((err) => {
-                console.error('❌ Error closing MongoDB connection:', err);
-                process.exit(1);
-            });
-        });
-    });
+    // process.on('SIGTERM', () => {
+    //   console.log('🔄 SIGTERM received. Starting graceful shutdown...');
+    //   server.close(() => {
+    //     console.log('💤 HTTP server closed');
+    //     mongoose.connection.close(false)
+    //       .then(() => {
+    //         console.log('📦 MongoDB connection closed');
+    //         process.exit(0);
+    //       })
+    //       .catch((err) => {
+    //         console.error('❌ Error closing MongoDB connection:', err);
+    //         process.exit(1);
+    //       });
+    //   });
+    // });
 }
 //# sourceMappingURL=index.js.map
