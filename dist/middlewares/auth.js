@@ -15,8 +15,9 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.authorize = exports.protect = void 0;
 const asyncHandler_1 = __importDefault(require("./asyncHandler"));
 const AppError_1 = __importDefault(require("../utils/AppError"));
-const User_1 = __importDefault(require("../models/User")); // Adjust path to your User model
+const User_1 = __importDefault(require("../models/User"));
 const Jwt_1 = require("../utils/Jwt");
+require("../types/express");
 exports.protect = (0, asyncHandler_1.default)((req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
     let token;
     if (req.headers.authorization &&

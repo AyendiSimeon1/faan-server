@@ -3,16 +3,7 @@ import asyncHandler from '../middlewares/asyncHandler';
 import { ParkingService } from '../services/Parking';
 import { StartSessionByQrDto, StartSessionByPlateDto, EndSessionDto } from '../types/Parking';
 import { IUser } from '../models/User';
-
-// Extend Express Request interface to include user property
-declare global {
-    
-  namespace Express {
-    interface Request {
-      user?: IUser;
-    }
-  }
-}
+import '../types/express';
 
 export const startSessionByQr = asyncHandler(async (req: Request, res: Response) => {
   const dto: StartSessionByQrDto = req.body;

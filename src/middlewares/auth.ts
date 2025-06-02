@@ -3,18 +3,10 @@ import { Request, Response, NextFunction } from 'express';
 import asyncHandler from './asyncHandler';
 import AppError from '../utils/AppError';
 
-import UserModel, { IUser } from '../models/User'; // Adjust path to your User model
+import UserModel, { IUser } from '../models/User';
 import { UserRole } from '../types/common';
 import { verifyToken } from '../utils/Jwt';
-
-// Extend Express Request type to include 'user'
-declare global {
-  namespace Express {
-    interface Request {
-      user?: IUser;
-    }
-  }
-}
+import '../types/express';
 
 export const protect = asyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
