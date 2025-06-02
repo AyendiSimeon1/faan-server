@@ -6,7 +6,15 @@ import AppError from '../utils/AppError';
 import UserModel, { IUser } from '../models/User';
 import { UserRole } from '../types/common';
 import { verifyToken } from '../utils/Jwt';
-import '../types/express';
+
+// Extend Express Request type to include 'user'
+declare global {
+  namespace Express {
+    interface Request {
+      user?: IUser;
+    }
+  }
+}
 
 export const protect = asyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {

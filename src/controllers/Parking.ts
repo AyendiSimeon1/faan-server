@@ -3,7 +3,6 @@ import asyncHandler from '../middlewares/asyncHandler';
 import { ParkingService } from '../services/Parking';
 import { StartSessionByQrDto, StartSessionByPlateDto, EndSessionDto } from '../types/Parking';
 import { IUser } from '../models/User';
-import '../types/express';
 
 export const startSessionByQr = asyncHandler(async (req: Request, res: Response) => {
   const dto: StartSessionByQrDto = req.body;

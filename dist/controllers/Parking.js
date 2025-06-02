@@ -15,7 +15,6 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.getParkingHistory = exports.endSessionAndPay = exports.getSessionDetails = exports.startSessionByPlate = exports.startSessionByQr = void 0;
 const asyncHandler_1 = __importDefault(require("../middlewares/asyncHandler"));
 const Parking_1 = require("../services/Parking");
-require("../types/express");
 exports.startSessionByQr = (0, asyncHandler_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     var _a, _b;
     const dto = req.body;
