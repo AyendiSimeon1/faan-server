@@ -13,6 +13,7 @@ import PaymentModel from '../models/Payment';
 import UserModel, { IUser } from '../models/User';
 import WalletModel from '../models/Wallet';
 import WalletTransactionModel from '../models/WalletTransaction';
+import { QRCodeService } from './qrcode';
 import { ParkingSessionStatus, PaymentStatus, PaymentMethodType, WalletTransactionType } from '../types/common';
 import { StartSessionByQrDto, StartSessionByPlateDto, EndSessionDto } from '../types/Parking';
 import AppError from '../utils/AppError';
@@ -27,42 +28,47 @@ const calculateParkingFee = (entryTime: Date, exitTime: Date, rateDetails?: stri
   return Math.max(ratePerHour, Math.ceil(durationHours * ratePerHour)); // Minimum 1 hour charge or actual
 };
 
-export class ParkingService {
-  static async startSessionByQr(dto: StartSessionByQrDto, userId?: string): Promise<IParkingSession> {
-    const { qrCodeId, vehicleType } = dto;
-    // Here, you might have a pre-existing mapping of QR codes to parking spots/locations
-    // Or the QR code itself contains location info to be parsed.
-    // For simplicity, let's assume qrCodeId is unique and implies a location.
+export class ParkingService {  static async startSessionByQr(dto: StartSessionByQrDto, userId?: string): Promise<IParkingSession> {
+    const { vehicleType, plateNumber } = dto;
 
-    // Check for existing active session with this QR code (shouldn't happen if QR is single-use for entry)
-    const existingSession = await ParkingSessionModel.findOne({ qrCodeId, status: ParkingSessionStatus.ACTIVE });
-    if (existingSession) {
-      throw new AppError('QR Code already associated with an active session.', 409);
+    try {
+      // Parse and verify the QR code data
+      // const parsedQRData = QRCodeService.parseQRCodeData(qrData);
+      // if (!QRCodeService.verifyQRCode(parsedQRData)) {
+      //   throw new AppError('QR code has expired. Please scan a new code.', 400);
+      // }
+
+      // Check for existing active session in this location
+    const existingSession = await ParkingSessionModel.findOne({
+      // locationId: parsedQRData.locationId,
+      status: ParkingSessionStatus.ACTIVE
+    });
+    // Get the plate number either from the DTO or from user's default vehicle
+    let plateNumberToUse = plateNumber;
+    if (!plateNumberToUse && userId) {
+      const user = await UserModel.findById(userId);
+      // Get the user's default vehicle if available
+      // TODO: Implement proper vehicle management
+      plateNumberToUse = plateNumber || "DEFAULT123"; // This should be replaced with actual vehicle management
     }
     
-    let plateNumberToUse: string | undefined;
-    if (userId) {
-        const user = await UserModel.findById(userId);
-        // TODO: Logic to get user's default vehicle or let them select
-        // For now, assume user has a default plate or it's part of QR data/flow
-        plateNumberToUse = user?.savedPaymentMethods?.[0]?.last4Digits || "DEFAULT123"; // Placeholder logic
-    }
     if (!plateNumberToUse) {
-        throw new AppError("Vehicle plate number is required to start session.", 400);
+      throw new AppError("Vehicle plate number is required to start session.", 400);
     }
-
 
     const session = await ParkingSessionModel.create({
       userId: userId || undefined,
-      qrCodeId,
-      vehiclePlateNumber: plateNumberToUse, // This needs a proper source
+      vehiclePlateNumber: plateNumberToUse.toUpperCase(),
       vehicleType,
-      parkingLocationId: `loc_qr_${qrCodeId}`, // Derive or lookup location
+      // parkingLocationId: parsedQRData.locationId,
       status: ParkingSessionStatus.ACTIVE,
       entryTime: new Date(),
-      rateDetails: "₦200/hr (standard)", // Example
+      rateDetails: "₦200/hr (standard)", // TODO: Get rate from location configuration
     });
     return session;
+    } catch (error) {
+      throw error;
+    }
   }
 
   static async startSessionByPlate(dto: StartSessionByPlateDto, userId?: string): Promise<IParkingSession> {
@@ -224,9 +230,9 @@ export class ParkingService {
          await session.save();
     }
     
-    if (finalPaymentStatus !== PaymentStatus.SUCCESSFUL) {
-        throw new AppError(paymentMessage, 402); // 402 Payment Required
-    }
+    // if (finalPaymentStatus !== PaymentStatus.SUCCESSFUL) {
+    //     throw new AppError(paymentMessage, 402); // 402 Payment Required
+    // }
 
     return { session, paymentResult, message: finalPaymentStatus === PaymentStatus.SUCCESSFUL ? "Payment successful. Session ended." : paymentMessage };
   }

@@ -1,13 +1,13 @@
-// src/services/payment.gateway.service.ts
-// This would integrate with Stripe, Paystack, etc.
+import axios from 'axios';
+import { config } from '../config';
+
+const PAYSTACK_BASE_URL = 'https://api.paystack.co';
 
 export interface ChargeCardOptions {
-  amount: number; // In smallest currency unit (e.g., kobo, cents)
-  currency: string;
-  source?: string; // Card token or payment method ID from gateway
-  customerId?: string; // Gateway customer ID
+  amount: number; // In smallest currency unit (naira)
+  currency?: string; // Default to NGN
   email: string;
-  reference: string; // Your internal unique reference
+  reference?: string; // Optional - will be generated if not provided
   metadata?: Record<string, any>;
 }
 
@@ -21,31 +21,78 @@ export interface ChargeResult {
 }
 
 export class PaymentGatewayService {
+  private static paystackApi = axios.create({
+    baseURL: PAYSTACK_BASE_URL,
+    headers: {
+      Authorization: `Bearer ${config.PAYSTACK_SECRET_KEY}`,
+      'Content-Type': 'application/json'
+    }
+  });
+
   static async chargeCard(options: ChargeCardOptions): Promise<ChargeResult> {
-    console.log(`[Payment Gateway] Attempting to charge ${options.amount} ${options.currency} for ref: ${options.reference}`);
-    // TODO: Integrate with actual payment gateway
-    // Simulate success for now
-    if (options.amount > 0) {
+    try {
+      const response = await this.paystackApi.post('/transaction/initialize', {
+        amount: options.amount * 100, // Convert to kobo
+        email: options.email,
+        reference: options.reference || `ref_${Date.now()}`,
+        metadata: options.metadata,
+        callback_url: config.PAYSTACK_CALLBACK_URL
+      });
+
+      const data = response.data.data;
       return {
         successful: true,
-        gatewayReference: `gw_${Date.now()}`,
-        message: "Payment successful (simulated)",
-        receiptUrl: `https://example.com/receipt/${options.reference}`,
-        rawResponse: { simulated: true },
+        gatewayReference: data.reference,
+        message: 'Payment initialization successful',
+        authorizationUrl: data.authorization_url,
+        rawResponse: response.data
+      };
+    } catch (error: any) {
+      return {
+        successful: false,
+        message: error.response?.data?.message || 'Payment initialization failed',
+        rawResponse: error.response?.data
       };
     }
-    return { successful: false, message: "Invalid amount (simulated)" };
+  }
+  static async verifyTransaction(reference: string): Promise<{
+    successful: boolean;
+    amount?: number;
+    metadata?: any;
+    message?: string;
+  }> {
+    try {
+      const response = await this.paystackApi.get(`/transaction/verify/${reference}`);
+      const data = response.data.data;
+      
+      return {
+        successful: data.status === 'success',
+        amount: data.amount / 100, // Convert from kobo to naira
+        metadata: data.metadata,
+        message: response.data.message
+      };
+    } catch (error: any) {
+      return {
+        successful: false,
+        message: error.response?.data?.message || 'Transaction verification failed'
+      };
+    }
   }
 
   static async createCustomer(email: string, name: string): Promise<{ customerId: string } | null> {
-    console.log(`[Payment Gateway] Creating customer for ${email}`);
-    // TODO: Integrate
-    return { customerId: `cus_${Date.now()}`};
-  }
+    try {
+      const response = await this.paystackApi.post('/customer', {
+        email,
+        first_name: name.split(' ')[0],
+        last_name: name.split(' ').slice(1).join(' ')
+      });
 
-  static async addPaymentMethodToCustomer(customerId: string, paymentMethodToken: string): Promise<{ paymentMethodId: string; cardLast4: string; cardBrand: string; expMonth: number; expYear: number } | null> {
-    console.log(`[Payment Gateway] Adding payment method to customer ${customerId}`);
-    // TODO: Integrate
-    return { paymentMethodId: `pm_${Date.now()}`, cardLast4: "4242", cardBrand: "visa", expMonth: 12, expYear: 2030};
+      return {
+        customerId: response.data.data.customer_code
+      };
+    } catch (error) {
+      console.error('Failed to create customer:', error);
+      return null;
+    }
   }
 }

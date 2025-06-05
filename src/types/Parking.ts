@@ -1,6 +1,7 @@
 export interface StartSessionByQrDto {
-  qrCodeId: string;
+  qrData: string; // The scanned QR code data
   vehicleType?: string; // Optional, can be fetched from user's default if not provided
+  plateNumber?: string; // Optional, can be fetched from user's default vehicle
 }
 
 export interface StartSessionByPlateDto {

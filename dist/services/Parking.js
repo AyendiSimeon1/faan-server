@@ -33,37 +33,43 @@ const calculateParkingFee = (entryTime, exitTime, rateDetails) => {
 class ParkingService {
     static startSessionByQr(dto, userId) {
         return __awaiter(this, void 0, void 0, function* () {
-            var _a, _b;
-            const { qrCodeId, vehicleType } = dto;
-            // Here, you might have a pre-existing mapping of QR codes to parking spots/locations
-            // Or the QR code itself contains location info to be parsed.
-            // For simplicity, let's assume qrCodeId is unique and implies a location.
-            // Check for existing active session with this QR code (shouldn't happen if QR is single-use for entry)
-            const existingSession = yield ParkingModel_1.default.findOne({ qrCodeId, status: common_1.ParkingSessionStatus.ACTIVE });
-            if (existingSession) {
-                throw new AppError_1.default('QR Code already associated with an active session.', 409);
+            const { vehicleType, plateNumber } = dto;
+            try {
+                // Parse and verify the QR code data
+                // const parsedQRData = QRCodeService.parseQRCodeData(qrData);
+                // if (!QRCodeService.verifyQRCode(parsedQRData)) {
+                //   throw new AppError('QR code has expired. Please scan a new code.', 400);
+                // }
+                // Check for existing active session in this location
+                const existingSession = yield ParkingModel_1.default.findOne({
+                    // locationId: parsedQRData.locationId,
+                    status: common_1.ParkingSessionStatus.ACTIVE
+                });
+                // Get the plate number either from the DTO or from user's default vehicle
+                let plateNumberToUse = plateNumber;
+                if (!plateNumberToUse && userId) {
+                    const user = yield User_1.default.findById(userId);
+                    // Get the user's default vehicle if available
+                    // TODO: Implement proper vehicle management
+                    plateNumberToUse = plateNumber || "DEFAULT123"; // This should be replaced with actual vehicle management
+                }
+                if (!plateNumberToUse) {
+                    throw new AppError_1.default("Vehicle plate number is required to start session.", 400);
+                }
+                const session = yield ParkingModel_1.default.create({
+                    userId: userId || undefined,
+                    vehiclePlateNumber: plateNumberToUse.toUpperCase(),
+                    vehicleType,
+                    // parkingLocationId: parsedQRData.locationId,
+                    status: common_1.ParkingSessionStatus.ACTIVE,
+                    entryTime: new Date(),
+                    rateDetails: "₦200/hr (standard)", // TODO: Get rate from location configuration
+                });
+                return session;
             }
-            let plateNumberToUse;
-            if (userId) {
-                const user = yield User_1.default.findById(userId);
-                // TODO: Logic to get user's default vehicle or let them select
-                // For now, assume user has a default plate or it's part of QR data/flow
-                plateNumberToUse = ((_b = (_a = user === null || user === void 0 ? void 0 : user.savedPaymentMethods) === null || _a === void 0 ? void 0 : _a[0]) === null || _b === void 0 ? void 0 : _b.last4Digits) || "DEFAULT123"; // Placeholder logic
+            catch (error) {
+                throw error;
             }
-            if (!plateNumberToUse) {
-                throw new AppError_1.default("Vehicle plate number is required to start session.", 400);
-            }
-            const session = yield ParkingModel_1.default.create({
-                userId: userId || undefined,
-                qrCodeId,
-                vehiclePlateNumber: plateNumberToUse, // This needs a proper source
-                vehicleType,
-                parkingLocationId: `loc_qr_${qrCodeId}`, // Derive or lookup location
-                status: common_1.ParkingSessionStatus.ACTIVE,
-                entryTime: new Date(),
-                rateDetails: "₦200/hr (standard)", // Example
-            });
-            return session;
         });
     }
     static startSessionByPlate(dto, userId) {
@@ -214,9 +220,9 @@ class ParkingService {
             finally {
                 yield session.save();
             }
-            if (finalPaymentStatus !== common_1.PaymentStatus.SUCCESSFUL) {
-                throw new AppError_1.default(paymentMessage, 402); // 402 Payment Required
-            }
+            // if (finalPaymentStatus !== PaymentStatus.SUCCESSFUL) {
+            //     throw new AppError(paymentMessage, 402); // 402 Payment Required
+            // }
             return { session, paymentResult, message: finalPaymentStatus === common_1.PaymentStatus.SUCCESSFUL ? "Payment successful. Session ended." : paymentMessage };
         });
     }
