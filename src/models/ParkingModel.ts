@@ -4,7 +4,8 @@ import { ParkingSessionStatus } from '../types/common';
 
 export interface IParkingSession extends Document {
   userId?: mongoose.Types.ObjectId; // Nullable for guest sessions
-  vehiclePlateNumber: string;
+  vehiclePlateNumber: string; // Normalized plate number (no spaces)
+  displayPlateNumber: string; // Original format with spaces for display
   vehicleType?: string; // e.g., "G-wagon 360"
   
   entryTime: Date;
@@ -41,18 +42,28 @@ const ParkingSessionSchema = new Schema<IParkingSession>(
   {
     userId: { type: Schema.Types.ObjectId, ref: 'User', index: true },
     vehiclePlateNumber: { type: String, required: true, uppercase: true, trim: true, index: true },
+    displayPlateNumber: { type: String, required: true, trim: true }, // New field for display plate number
     vehicleType: { type: String },
     
     entryTime: { type: Date, required: true, default: Date.now },
     exitTime: { type: Date },
-    durationInMinutes: { type: Number },
-
-    parkingLocationId: { type: String, required: true }, // Could be ObjectId if locations are managed entities
+    durationInMinutes: { type: Number },    parkingLocationId: { type: String, required: true, default: 'default_location' }, // Could be ObjectId if locations are managed entities
     parkingSpotIdentifier: { type: String },
 
     qrCodeId: { type: String, unique: true, sparse: true }, // Sparse for optional unique field
 
-    status: { type: String, enum: Object.values(ParkingSessionStatus), required: true, default: ParkingSessionStatus.ACTIVE },
+    status: { 
+      type: String, 
+      enum: Object.values(ParkingSessionStatus), 
+      required: false, 
+      default: ParkingSessionStatus.ACTIVE,
+      validate: {
+        validator: function(v: string) {
+          return Object.values(ParkingSessionStatus).includes(v as ParkingSessionStatus);
+        },
+        message: (props: any) => `${props.value} is not a valid parking session status`
+      }
+    },
     
     rateDetails: { type: String },
     calculatedFee: { type: Number },

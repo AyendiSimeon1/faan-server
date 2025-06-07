@@ -38,14 +38,25 @@ const common_1 = require("../types/common");
 const ParkingSessionSchema = new mongoose_1.Schema({
     userId: { type: mongoose_1.Schema.Types.ObjectId, ref: 'User', index: true },
     vehiclePlateNumber: { type: String, required: true, uppercase: true, trim: true, index: true },
+    displayPlateNumber: { type: String, required: true, trim: true }, // New field for display plate number
     vehicleType: { type: String },
     entryTime: { type: Date, required: true, default: Date.now },
     exitTime: { type: Date },
-    durationInMinutes: { type: Number },
-    parkingLocationId: { type: String, required: true }, // Could be ObjectId if locations are managed entities
+    durationInMinutes: { type: Number }, parkingLocationId: { type: String, required: true, default: 'default_location' }, // Could be ObjectId if locations are managed entities
     parkingSpotIdentifier: { type: String },
     qrCodeId: { type: String, unique: true, sparse: true }, // Sparse for optional unique field
-    status: { type: String, enum: Object.values(common_1.ParkingSessionStatus), required: true, default: common_1.ParkingSessionStatus.ACTIVE },
+    status: {
+        type: String,
+        enum: Object.values(common_1.ParkingSessionStatus),
+        required: false,
+        default: common_1.ParkingSessionStatus.ACTIVE,
+        validate: {
+            validator: function (v) {
+                return Object.values(common_1.ParkingSessionStatus).includes(v);
+            },
+            message: (props) => `${props.value} is not a valid parking session status`
+        }
+    },
     rateDetails: { type: String },
     calculatedFee: { type: Number },
     paymentId: { type: mongoose_1.Schema.Types.ObjectId, ref: 'Payment' },

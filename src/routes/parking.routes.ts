@@ -22,19 +22,17 @@ const parkingRouter = Router();
 parkingRouter.post('/qr-code/generate', protect, generateParkingQRCode);
 parkingRouter.post('/qr-code/validate', protect, validateParkingQR);
 
-// Parking session management
+// Parking session management - Modern API
+parkingRouter.post('/session/start/qr', protect, startSessionByQr);
+parkingRouter.post('/session/start/plate', protect, startSessionByPlate);
+parkingRouter.post('/session/:plateNumber/end', protect, endSessionAndPay);
+parkingRouter.get('/sessions/history', protect, getParkingHistory);
+
+// Legacy endpoints - to be deprecated
 parkingRouter.post('/sessions', protect, startParkingSession);
 parkingRouter.post('/sessions/:sessionId/end', protect, endParkingSession);
 
 // Vehicle image processing
 parkingRouter.post('/process-image', protect, upload.single('image'), processCarImage);
-
-// Legacy routes
-parkingRouter.post('/start-session/qr', protect, startSessionByQr);
-parkingRouter.post('/start-session/plate', protect, startSessionByPlate);
-parkingRouter.post('/process-car-image', protect, upload.single('image'), processCarImage);
-parkingRouter.get('/session/:sessionId', protect, getSessionDetails);
-parkingRouter.post('/session/:sessionId/end', protect, endSessionAndPay);
-parkingRouter.get('/history', protect, getParkingHistory);
 
 export default parkingRouter;

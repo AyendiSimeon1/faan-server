@@ -12,8 +12,12 @@ export const startSessionByQr = asyncHandler(async (req: Request, res: Response)
 });
 
 export const startSessionByPlate = asyncHandler(async (req: Request, res: Response) => {
-  const dto: StartSessionByPlateDto = req.body;
-  const userId = req.user?._id?.toString(); // Can be undefined for guest access
+  const dto: StartSessionByPlateDto = {
+    ...req.body,
+    plateNumber: req.body.plateNumber,
+    displayPlateNumber: req.body.plateNumber, // preserve original format for display
+  };
+  const userId = req.user?._id?.toString();
   const session = await ParkingService.startSessionByPlate(dto, userId);
   res.status(201).json({ status: 'success', data: session });
 });
@@ -26,10 +30,15 @@ export const getSessionDetails = asyncHandler(async (req: Request, res: Response
 });
 
 export const endSessionAndPay = asyncHandler(async (req: Request, res: Response) => {
-  const dto: EndSessionDto = req.body;
-  dto.sessionId = req.params.sessionId; // Get sessionId from URL param
+  const plateNumber = req.params.plateNumber || req.body.plateNumber;
+  const dto: EndSessionDto = {
+    plateNumber,
+    displayPlateNumber: plateNumber, // preserve original format for display
+    paymentMethodId: req.body.paymentMethodId,
+    paymentMethodType: req.body.paymentMethodType
+  };
+  
   const user = req.user as IUser; // `protect` middleware ensures user exists
-
   const result = await ParkingService.endSessionAndPay(dto, user);
   res.status(200).json({ status: 'success', data: result });
 });

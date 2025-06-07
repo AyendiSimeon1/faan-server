@@ -1,12 +1,3 @@
-// import ParkingSessionModel, { IParkingSession } from '../../models/ParkingSession';
-// import PaymentModel from '../../models/Payment';
-// import WalletModel from '../../models/Wallet';
-// import UserModel, { IUser } from '../../models/User';
-// import AppError from '../../utils/AppError';
-// import { ParkingSessionStatus, PaymentMethodType, PaymentStatus, WalletTransactionType } from '../../common/types';
-// import { StartSessionByQrDto, StartSessionByPlateDto, EndSessionDto } from './parking.types';
-// import { PaymentGatewayService } from '../../services/payment.gateway.service'; // Conceptual
-// import WalletTransactionModel from '../../models/WalletTransaction'; // Import for wallet transactions
 import mongoose from 'mongoose';
 import ParkingSessionModel, { IParkingSession } from '../models/ParkingModel';
 import PaymentModel from '../models/Payment';
@@ -18,6 +9,7 @@ import { ParkingSessionStatus, PaymentStatus, PaymentMethodType, WalletTransacti
 import { StartSessionByQrDto, StartSessionByPlateDto, EndSessionDto } from '../types/Parking';
 import AppError from '../utils/AppError';
 import { PaymentGatewayService } from './payment.gateway';
+import { normalizePlateNumber } from '../utils/ParkingFeeCalculator';
 
 // Assume a function to calculate parking fee
 const calculateParkingFee = (entryTime: Date, exitTime: Date, rateDetails?: string): number => {
@@ -28,44 +20,33 @@ const calculateParkingFee = (entryTime: Date, exitTime: Date, rateDetails?: stri
   return Math.max(ratePerHour, Math.ceil(durationHours * ratePerHour)); // Minimum 1 hour charge or actual
 };
 
-export class ParkingService {  static async startSessionByQr(dto: StartSessionByQrDto, userId?: string): Promise<IParkingSession> {
+export class ParkingService {
+  static async startSessionByQr(dto: StartSessionByQrDto, userId?: string): Promise<IParkingSession> {
     const { vehicleType, plateNumber } = dto;
 
     try {
-      // Parse and verify the QR code data
-      // const parsedQRData = QRCodeService.parseQRCodeData(qrData);
-      // if (!QRCodeService.verifyQRCode(parsedQRData)) {
-      //   throw new AppError('QR code has expired. Please scan a new code.', 400);
-      // }
-
       // Check for existing active session in this location
-    const existingSession = await ParkingSessionModel.findOne({
-      // locationId: parsedQRData.locationId,
-      status: ParkingSessionStatus.ACTIVE
-    });
-    // Get the plate number either from the DTO or from user's default vehicle
-    let plateNumberToUse = plateNumber;
-    if (!plateNumberToUse && userId) {
-      const user = await UserModel.findById(userId);
-      // Get the user's default vehicle if available
-      // TODO: Implement proper vehicle management
-      plateNumberToUse = plateNumber || "DEFAULT123"; // This should be replaced with actual vehicle management
-    }
-    
-    if (!plateNumberToUse) {
-      throw new AppError("Vehicle plate number is required to start session.", 400);
-    }
+      const normalizedPlate = plateNumber ? normalizePlateNumber(plateNumber) : '';
+      const existingSession = await ParkingSessionModel.findOne({
+        vehiclePlateNumber: normalizedPlate,
+        status: ParkingSessionStatus.ACTIVE
+      });
 
-    const session = await ParkingSessionModel.create({
-      userId: userId || undefined,
-      vehiclePlateNumber: plateNumberToUse.toUpperCase(),
-      vehicleType,
-      // parkingLocationId: parsedQRData.locationId,
-      status: ParkingSessionStatus.ACTIVE,
-      entryTime: new Date(),
-      rateDetails: "₦200/hr (standard)", // TODO: Get rate from location configuration
-    });
-    return session;
+      if (existingSession) {
+        throw new AppError(`Vehicle ${plateNumber} already has an active parking session.`, 409);
+      }
+
+      const session = await ParkingSessionModel.create({
+        userId: userId || undefined,
+        vehiclePlateNumber: normalizedPlate,
+        displayPlateNumber: plateNumber || normalizedPlate,
+        vehicleType,
+        parkingLocationId: 'default_location_qr_entry', // TODO: Get from QR data
+        status: ParkingSessionStatus.ACTIVE,
+        entryTime: new Date(),
+        rateDetails: "₦200/hr (standard)", // TODO: Get from location config
+      });
+      return session;
     } catch (error) {
       throw error;
     }
@@ -73,23 +54,26 @@ export class ParkingService {  static async startSessionByQr(dto: StartSessionBy
 
   static async startSessionByPlate(dto: StartSessionByPlateDto, userId?: string): Promise<IParkingSession> {
     const { plateNumber, vehicleType } = dto;
+    const normalizedPlate = normalizePlateNumber(plateNumber);
 
     const existingActiveSession = await ParkingSessionModel.findOne({
-      vehiclePlateNumber: plateNumber.toUpperCase(),
+      vehiclePlateNumber: normalizedPlate,
       status: ParkingSessionStatus.ACTIVE,
     });
+
     if (existingActiveSession) {
       throw new AppError(`Vehicle ${plateNumber} already has an active parking session.`, 409);
     }
 
     const session = await ParkingSessionModel.create({
       userId: userId || undefined,
-      vehiclePlateNumber: plateNumber.toUpperCase(),
+      vehiclePlateNumber: normalizedPlate,
+      displayPlateNumber: plateNumber,
       vehicleType,
-      parkingLocationId: 'default_location_plate_entry', // Example
+      parkingLocationId: 'default_location_plate_entry',
       status: ParkingSessionStatus.ACTIVE,
       entryTime: new Date(),
-      rateDetails: "₦200/hr (standard)", // Example
+      rateDetails: "₦200/hr (standard)", // Example rate
     });
     return session;
   }
@@ -112,17 +96,22 @@ export class ParkingService {  static async startSessionByQr(dto: StartSessionBy
   }
 
   static async endSessionAndPay(dto: EndSessionDto, user: IUser): Promise<{ session: IParkingSession; paymentResult: any; message: string }> {
-    const { sessionId, paymentMethodId, paymentMethodType } = dto;
+    const { plateNumber, paymentMethodId, paymentMethodType } = dto;
+    const normalizedPlate = normalizePlateNumber(plateNumber);
 
-    const session = await ParkingSessionModel.findById(sessionId);
+    // Find active session by normalized plate number
+    const session = await ParkingSessionModel.findOne({
+      vehiclePlateNumber: normalizedPlate,
+      status: ParkingSessionStatus.ACTIVE
+    });
+
     if (!session) {
-      throw new AppError('Parking session not found.', 404);
+      throw new AppError('No active parking session found for this vehicle.', 404);
     }
-    if (session.userId?.toString() !== (user._id as mongoose.Types.ObjectId).toString()) {
+
+    // Check authorization if the session belongs to a user
+    if (session.userId && session.userId.toString() !== user.id) {
       throw new AppError('You are not authorized to end this session.', 403);
-    }
-    if (session.status !== ParkingSessionStatus.ACTIVE && session.status !== ParkingSessionStatus.PENDING_PAYMENT) {
-      throw new AppError(`Session cannot be ended. Current status: ${session.status}`, 400);
     }
 
     session.exitTime = new Date();
@@ -144,17 +133,17 @@ export class ParkingService {  static async startSessionByQr(dto: StartSessionBy
     let finalPaymentStatus = PaymentStatus.PENDING;
 
     const paymentRecord = await PaymentModel.create({
-        userId: user._id,
-        parkingSessionId: session._id,
+        userId: user.id,
+        parkingSessionId: session.id,
         amount: session.calculatedFee,
-        currency: 'NGN', // Assuming NGN
+        currency: 'NGN',
         paymentMethodType: paymentMethodType === 'card' ? PaymentMethodType.CARD : PaymentMethodType.WALLET,
         status: PaymentStatus.PENDING,
     });
 
     try {
         if (paymentMethodType === 'wallet') {
-            const wallet = await WalletModel.findOne({ userId: user._id });
+            const wallet = await WalletModel.findOne({ userId: user.id });
             if (!wallet || wallet.balance < session.calculatedFee) {
                 throw new AppError('Insufficient wallet balance.', 402);
             }
@@ -165,35 +154,37 @@ export class ParkingService {  static async startSessionByQr(dto: StartSessionBy
 
             // Record wallet transaction
             await WalletTransactionModel.create({
-                walletId: wallet._id,
-                userId: user._id,
+                walletId: wallet.id,
+                userId: user.id,
                 type: WalletTransactionType.PARKING_FEE,
-                amount: -session.calculatedFee, // Negative for deduction
+                amount: -session.calculatedFee,
                 status: PaymentStatus.SUCCESSFUL,
-                description: `Parking fee for session ${session._id}`,
-                relatedParkingSessionId: session._id,
-                relatedPaymentId: paymentRecord._id,
+                description: `Parking fee for vehicle ${plateNumber}`,
+                relatedParkingSessionId: session.id,
+                relatedPaymentId: paymentRecord.id,
             });
 
             paymentResult = { successful: true, message: "Paid successfully from wallet."};
             finalPaymentStatus = PaymentStatus.SUCCESSFUL;
-            paymentRecord.paymentMethodDetails = { provider: 'wallet', walletId: (wallet._id as mongoose.Types.ObjectId).toString() };
+            paymentRecord.paymentMethodDetails = { provider: 'wallet', walletId: wallet.id };
 
         } else if (paymentMethodType === 'card') {
             // Find the specific card from user's saved methods or use a token from client
             const cardToCharge = user.savedPaymentMethods.find(pm => pm.paymentMethodId === paymentMethodId);
-            if (!cardToCharge && !paymentMethodId) { // paymentMethodId could be a one-time token
+            if (!cardToCharge && !paymentMethodId) {
                 throw new AppError('Payment method ID required for card payment.', 400);
             }
 
             const chargeOpts = {
-                amount: session.calculatedFee * 100, // To kobo/cents
+                amount: session.calculatedFee,
                 currency: 'NGN',
-                // source: paymentMethodId, // This would be the gateway's token for the card
-                // customerId: user.gatewayCustomerId, // If you store gateway customer IDs
                 email: user.email,
-                reference: `sess_${session._id}_pay_${paymentRecord._id}`,
-                metadata: { sessionId: (session._id as mongoose.Types.ObjectId).toString(), userId: (user._id as mongoose.Types.ObjectId).toString() },
+                reference: `park_${plateNumber}_${session.id}_${paymentRecord.id}`,
+                metadata: { 
+                    sessionId: session.id,
+                    userId: user.id,
+                    plateNumber: plateNumber 
+                },
             };
             const gwResult = await PaymentGatewayService.chargeCard(chargeOpts);
             paymentResult = gwResult;
@@ -208,7 +199,7 @@ export class ParkingService {  static async startSessionByQr(dto: StartSessionBy
             paymentRecord.gatewayResponse = gwResult.rawResponse;
             paymentRecord.receiptUrl = gwResult.receiptUrl;
             if (cardToCharge) {
-                 paymentRecord.paymentMethodDetails = { provider: cardToCharge.provider, last4Digits: cardToCharge.last4Digits };
+                paymentRecord.paymentMethodDetails = { provider: cardToCharge.provider, last4Digits: cardToCharge.last4Digits };
             }
         }
 
@@ -216,26 +207,22 @@ export class ParkingService {  static async startSessionByQr(dto: StartSessionBy
         paymentRecord.processedAt = new Date();
         await paymentRecord.save();
         
-        session.paymentId = paymentRecord._id as mongoose.Types.ObjectId;
-        session.status = finalPaymentStatus === PaymentStatus.SUCCESSFUL ? ParkingSessionStatus.COMPLETED : ParkingSessionStatus.PENDING_PAYMENT; // Revert if failed
+        session.paymentId = paymentRecord.id as unknown as mongoose.Types.ObjectId;
+        session.status = finalPaymentStatus === PaymentStatus.SUCCESSFUL ? ParkingSessionStatus.COMPLETED : ParkingSessionStatus.PENDING_PAYMENT;
 
     } catch (error: any) {
-        session.status = ParkingSessionStatus.PENDING_PAYMENT; // Error occurred, user might need to retry
+        session.status = ParkingSessionStatus.PENDING_PAYMENT;
         paymentRecord.status = PaymentStatus.FAILED;
         if (error instanceof AppError) paymentMessage = error.message;
         else paymentMessage = "An unexpected error occurred during payment processing.";
         await paymentRecord.save();
-        // Rethrow or handle gracefully
     } finally {
-         await session.save();
+        await session.save();
     }
-    
-    // if (finalPaymentStatus !== PaymentStatus.SUCCESSFUL) {
-    //     throw new AppError(paymentMessage, 402); // 402 Payment Required
-    // }
 
     return { session, paymentResult, message: finalPaymentStatus === PaymentStatus.SUCCESSFUL ? "Payment successful. Session ended." : paymentMessage };
   }
+
 
   static async getParkingHistory(userId: string, page: number = 1, limit: number = 10): Promise<{ sessions: IParkingSession[], total: number, currentPage: number, totalPages: number }> {
     const skip = (page - 1) * limit;

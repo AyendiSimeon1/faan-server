@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.TransactionHistoryStatus = exports.WalletTransactionType = exports.CardProvider = exports.PaymentStatus = exports.PaymentMethodType = exports.ParkingSessionStatus = exports.OtpType = exports.UserRole = void 0;
+exports.TransactionHistoryStatus = exports.WalletTransactionType = exports.CardProvider = exports.PaymentMethodType = exports.PaymentStatus = exports.ParkingSessionStatus = exports.OtpType = exports.UserRole = void 0;
 // common/types.ts (or a similar shared location)
 var UserRole;
 (function (UserRole) {
@@ -20,29 +20,30 @@ var ParkingSessionStatus;
     ParkingSessionStatus["ACTIVE"] = "active";
     ParkingSessionStatus["PENDING_PAYMENT"] = "pending_payment";
     ParkingSessionStatus["COMPLETED"] = "completed";
+    ParkingSessionStatus["ENDED"] = "ended";
     ParkingSessionStatus["CANCELLED"] = "cancelled";
     ParkingSessionStatus["PAID_BY_AGENT"] = "paid_by_agent";
-    ParkingSessionStatus["LOADING_EXIT"] = "loading_exit";
+    ParkingSessionStatus["LOADING_EXIT"] = "LOADING_EXIT";
 })(ParkingSessionStatus || (exports.ParkingSessionStatus = ParkingSessionStatus = {}));
+var PaymentStatus;
+(function (PaymentStatus) {
+    PaymentStatus["PENDING"] = "pending";
+    PaymentStatus["COMPLETED"] = "completed";
+    PaymentStatus["SUCCESSFUL"] = "successful";
+    PaymentStatus["FAILED"] = "failed";
+    PaymentStatus["REFUNDED"] = "refunded";
+})(PaymentStatus || (exports.PaymentStatus = PaymentStatus = {}));
 var PaymentMethodType;
 (function (PaymentMethodType) {
     PaymentMethodType["CARD"] = "card";
     PaymentMethodType["WALLET"] = "wallet";
     PaymentMethodType["AGENT_POS"] = "agent_pos";
 })(PaymentMethodType || (exports.PaymentMethodType = PaymentMethodType = {}));
-var PaymentStatus;
-(function (PaymentStatus) {
-    PaymentStatus["PENDING"] = "pending";
-    PaymentStatus["SUCCESSFUL"] = "successful";
-    PaymentStatus["FAILED"] = "failed";
-    PaymentStatus["REFUNDED"] = "refunded";
-})(PaymentStatus || (exports.PaymentStatus = PaymentStatus = {}));
 var CardProvider;
 (function (CardProvider) {
     CardProvider["VISA"] = "visa";
     CardProvider["MASTERCARD"] = "mastercard";
     CardProvider["PAYPAL"] = "paypal";
-    // Add others like AMEX, DISCOVER
 })(CardProvider || (exports.CardProvider = CardProvider = {}));
 var WalletTransactionType;
 (function (WalletTransactionType) {
@@ -50,7 +51,9 @@ var WalletTransactionType;
     WalletTransactionType["WITHDRAWAL"] = "withdrawal";
     WalletTransactionType["PARKING_FEE"] = "parking_fee";
     WalletTransactionType["REFUND"] = "refund";
-    WalletTransactionType["ADJUSTMENT"] = "adjustment";
+    WalletTransactionType["CREDIT"] = "credit";
+    WalletTransactionType["DEBIT"] = "debit";
+    WalletTransactionType["ADJUSTMENT"] = "adjustment"; // For admin corrections
 })(WalletTransactionType || (exports.WalletTransactionType = WalletTransactionType = {}));
 var TransactionHistoryStatus;
 (function (TransactionHistoryStatus) {

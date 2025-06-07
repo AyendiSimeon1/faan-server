@@ -24,8 +24,8 @@ exports.startSessionByQr = (0, asyncHandler_1.default)((req, res) => __awaiter(v
 }));
 exports.startSessionByPlate = (0, asyncHandler_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     var _a, _b;
-    const dto = req.body;
-    const userId = (_b = (_a = req.user) === null || _a === void 0 ? void 0 : _a._id) === null || _b === void 0 ? void 0 : _b.toString(); // Can be undefined for guest access
+    const dto = Object.assign(Object.assign({}, req.body), { plateNumber: req.body.plateNumber, displayPlateNumber: req.body.plateNumber });
+    const userId = (_b = (_a = req.user) === null || _a === void 0 ? void 0 : _a._id) === null || _b === void 0 ? void 0 : _b.toString();
     const session = yield Parking_1.ParkingService.startSessionByPlate(dto, userId);
     res.status(201).json({ status: 'success', data: session });
 }));
@@ -37,8 +37,13 @@ exports.getSessionDetails = (0, asyncHandler_1.default)((req, res) => __awaiter(
     res.status(200).json({ status: 'success', data: session });
 }));
 exports.endSessionAndPay = (0, asyncHandler_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    const dto = req.body;
-    dto.sessionId = req.params.sessionId; // Get sessionId from URL param
+    const plateNumber = req.params.plateNumber || req.body.plateNumber;
+    const dto = {
+        plateNumber,
+        displayPlateNumber: plateNumber, // preserve original format for display
+        paymentMethodId: req.body.paymentMethodId,
+        paymentMethodType: req.body.paymentMethodType
+    };
     const user = req.user; // `protect` middleware ensures user exists
     const result = yield Parking_1.ParkingService.endSessionAndPay(dto, user);
     res.status(200).json({ status: 'success', data: result });

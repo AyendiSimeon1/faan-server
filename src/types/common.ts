@@ -17,37 +17,40 @@ export enum ParkingSessionStatus {
   ACTIVE = 'active',
   PENDING_PAYMENT = 'pending_payment', // User is about to pay
   COMPLETED = 'completed', // Paid and exited
+  ENDED = 'ended', // Session ended, pending payment
   CANCELLED = 'cancelled',
   PAID_BY_AGENT = 'paid_by_agent',
-  LOADING_EXIT = 'loading_exit', // Corresponds to auto-debit loading screen
+  LOADING_EXIT = "LOADING_EXIT"
+}
+
+export enum PaymentStatus {
+  PENDING = 'pending',
+  COMPLETED = 'completed',
+  SUCCESSFUL = 'successful',
+  FAILED = 'failed',
+  REFUNDED = 'refunded'
 }
 
 export enum PaymentMethodType {
   CARD = 'card',
   WALLET = 'wallet',
-  AGENT_POS = 'agent_pos',
-}
-
-export enum PaymentStatus {
-  PENDING = 'pending',
-  SUCCESSFUL = 'successful',
-  FAILED = 'failed',
-  REFUNDED = 'refunded',
+  AGENT_POS = 'agent_pos'
 }
 
 export enum CardProvider {
   VISA = 'visa',
   MASTERCARD = 'mastercard',
-  PAYPAL = 'paypal', // Though not a card, it's a payment option
-  // Add others like AMEX, DISCOVER
+  PAYPAL = 'paypal'
 }
 
 export enum WalletTransactionType {
   DEPOSIT = 'deposit', // Top-up
-  WITHDRAWAL = 'withdrawal', // Not in mockups, but good to consider
+  WITHDRAWAL = 'withdrawal',
   PARKING_FEE = 'parking_fee',
   REFUND = 'refund',
-  ADJUSTMENT = 'adjustment', // For admin corrections
+  CREDIT = 'credit',
+  DEBIT = 'debit',
+  ADJUSTMENT = 'adjustment' // For admin corrections
 }
 
 export enum TransactionHistoryStatus {

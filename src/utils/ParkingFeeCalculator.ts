@@ -75,3 +75,9 @@ export class ParkingFeeCalculator {
     return this.BASE_RATES[type];
   }
 }
+
+// Utility function to normalize plate numbers
+export const normalizePlateNumber = (plateNumber: string): string => {
+  // Remove all whitespace and convert to uppercase
+  return plateNumber.replace(/\s+/g, '').toUpperCase();
+};

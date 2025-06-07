@@ -15,12 +15,12 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.ParkingService = void 0;
 const ParkingModel_1 = __importDefault(require("../models/ParkingModel"));
 const Payment_1 = __importDefault(require("../models/Payment"));
-const User_1 = __importDefault(require("../models/User"));
 const Wallet_1 = __importDefault(require("../models/Wallet"));
 const WalletTransaction_1 = __importDefault(require("../models/WalletTransaction"));
 const common_1 = require("../types/common");
 const AppError_1 = __importDefault(require("../utils/AppError"));
 const payment_gateway_1 = require("./payment.gateway");
+const ParkingFeeCalculator_1 = require("../utils/ParkingFeeCalculator");
 // Assume a function to calculate parking fee
 const calculateParkingFee = (entryTime, exitTime, rateDetails) => {
     var _a;
@@ -35,35 +35,24 @@ class ParkingService {
         return __awaiter(this, void 0, void 0, function* () {
             const { vehicleType, plateNumber } = dto;
             try {
-                // Parse and verify the QR code data
-                // const parsedQRData = QRCodeService.parseQRCodeData(qrData);
-                // if (!QRCodeService.verifyQRCode(parsedQRData)) {
-                //   throw new AppError('QR code has expired. Please scan a new code.', 400);
-                // }
                 // Check for existing active session in this location
+                const normalizedPlate = plateNumber ? (0, ParkingFeeCalculator_1.normalizePlateNumber)(plateNumber) : '';
                 const existingSession = yield ParkingModel_1.default.findOne({
-                    // locationId: parsedQRData.locationId,
+                    vehiclePlateNumber: normalizedPlate,
                     status: common_1.ParkingSessionStatus.ACTIVE
                 });
-                // Get the plate number either from the DTO or from user's default vehicle
-                let plateNumberToUse = plateNumber;
-                if (!plateNumberToUse && userId) {
-                    const user = yield User_1.default.findById(userId);
-                    // Get the user's default vehicle if available
-                    // TODO: Implement proper vehicle management
-                    plateNumberToUse = plateNumber || "DEFAULT123"; // This should be replaced with actual vehicle management
-                }
-                if (!plateNumberToUse) {
-                    throw new AppError_1.default("Vehicle plate number is required to start session.", 400);
+                if (existingSession) {
+                    throw new AppError_1.default(`Vehicle ${plateNumber} already has an active parking session.`, 409);
                 }
                 const session = yield ParkingModel_1.default.create({
                     userId: userId || undefined,
-                    vehiclePlateNumber: plateNumberToUse.toUpperCase(),
+                    vehiclePlateNumber: normalizedPlate,
+                    displayPlateNumber: plateNumber || normalizedPlate,
                     vehicleType,
-                    // parkingLocationId: parsedQRData.locationId,
+                    parkingLocationId: 'default_location_qr_entry', // TODO: Get from QR data
                     status: common_1.ParkingSessionStatus.ACTIVE,
                     entryTime: new Date(),
-                    rateDetails: "₦200/hr (standard)", // TODO: Get rate from location configuration
+                    rateDetails: "₦200/hr (standard)", // TODO: Get from location config
                 });
                 return session;
             }
@@ -75,8 +64,9 @@ class ParkingService {
     static startSessionByPlate(dto, userId) {
         return __awaiter(this, void 0, void 0, function* () {
             const { plateNumber, vehicleType } = dto;
+            const normalizedPlate = (0, ParkingFeeCalculator_1.normalizePlateNumber)(plateNumber);
             const existingActiveSession = yield ParkingModel_1.default.findOne({
-                vehiclePlateNumber: plateNumber.toUpperCase(),
+                vehiclePlateNumber: normalizedPlate,
                 status: common_1.ParkingSessionStatus.ACTIVE,
             });
             if (existingActiveSession) {
@@ -84,12 +74,13 @@ class ParkingService {
             }
             const session = yield ParkingModel_1.default.create({
                 userId: userId || undefined,
-                vehiclePlateNumber: plateNumber.toUpperCase(),
+                vehiclePlateNumber: normalizedPlate,
+                displayPlateNumber: plateNumber,
                 vehicleType,
-                parkingLocationId: 'default_location_plate_entry', // Example
+                parkingLocationId: 'default_location_plate_entry',
                 status: common_1.ParkingSessionStatus.ACTIVE,
                 entryTime: new Date(),
-                rateDetails: "₦200/hr (standard)", // Example
+                rateDetails: "₦200/hr (standard)", // Example rate
             });
             return session;
         });
@@ -113,17 +104,19 @@ class ParkingService {
     }
     static endSessionAndPay(dto, user) {
         return __awaiter(this, void 0, void 0, function* () {
-            var _a;
-            const { sessionId, paymentMethodId, paymentMethodType } = dto;
-            const session = yield ParkingModel_1.default.findById(sessionId);
+            const { plateNumber, paymentMethodId, paymentMethodType } = dto;
+            const normalizedPlate = (0, ParkingFeeCalculator_1.normalizePlateNumber)(plateNumber);
+            // Find active session by normalized plate number
+            const session = yield ParkingModel_1.default.findOne({
+                vehiclePlateNumber: normalizedPlate,
+                status: common_1.ParkingSessionStatus.ACTIVE
+            });
             if (!session) {
-                throw new AppError_1.default('Parking session not found.', 404);
+                throw new AppError_1.default('No active parking session found for this vehicle.', 404);
             }
-            if (((_a = session.userId) === null || _a === void 0 ? void 0 : _a.toString()) !== user._id.toString()) {
+            // Check authorization if the session belongs to a user
+            if (session.userId && session.userId.toString() !== user.id) {
                 throw new AppError_1.default('You are not authorized to end this session.', 403);
-            }
-            if (session.status !== common_1.ParkingSessionStatus.ACTIVE && session.status !== common_1.ParkingSessionStatus.PENDING_PAYMENT) {
-                throw new AppError_1.default(`Session cannot be ended. Current status: ${session.status}`, 400);
             }
             session.exitTime = new Date();
             session.durationInMinutes = Math.round((session.exitTime.getTime() - session.entryTime.getTime()) / (1000 * 60));
@@ -139,16 +132,16 @@ class ParkingService {
             let paymentMessage = "Payment processing initiated.";
             let finalPaymentStatus = common_1.PaymentStatus.PENDING;
             const paymentRecord = yield Payment_1.default.create({
-                userId: user._id,
-                parkingSessionId: session._id,
+                userId: user.id,
+                parkingSessionId: session.id,
                 amount: session.calculatedFee,
-                currency: 'NGN', // Assuming NGN
+                currency: 'NGN',
                 paymentMethodType: paymentMethodType === 'card' ? common_1.PaymentMethodType.CARD : common_1.PaymentMethodType.WALLET,
                 status: common_1.PaymentStatus.PENDING,
             });
             try {
                 if (paymentMethodType === 'wallet') {
-                    const wallet = yield Wallet_1.default.findOne({ userId: user._id });
+                    const wallet = yield Wallet_1.default.findOne({ userId: user.id });
                     if (!wallet || wallet.balance < session.calculatedFee) {
                         throw new AppError_1.default('Insufficient wallet balance.', 402);
                     }
@@ -157,33 +150,35 @@ class ParkingService {
                     yield wallet.save();
                     // Record wallet transaction
                     yield WalletTransaction_1.default.create({
-                        walletId: wallet._id,
-                        userId: user._id,
+                        walletId: wallet.id,
+                        userId: user.id,
                         type: common_1.WalletTransactionType.PARKING_FEE,
-                        amount: -session.calculatedFee, // Negative for deduction
+                        amount: -session.calculatedFee,
                         status: common_1.PaymentStatus.SUCCESSFUL,
-                        description: `Parking fee for session ${session._id}`,
-                        relatedParkingSessionId: session._id,
-                        relatedPaymentId: paymentRecord._id,
+                        description: `Parking fee for vehicle ${plateNumber}`,
+                        relatedParkingSessionId: session.id,
+                        relatedPaymentId: paymentRecord.id,
                     });
                     paymentResult = { successful: true, message: "Paid successfully from wallet." };
                     finalPaymentStatus = common_1.PaymentStatus.SUCCESSFUL;
-                    paymentRecord.paymentMethodDetails = { provider: 'wallet', walletId: wallet._id.toString() };
+                    paymentRecord.paymentMethodDetails = { provider: 'wallet', walletId: wallet.id };
                 }
                 else if (paymentMethodType === 'card') {
                     // Find the specific card from user's saved methods or use a token from client
                     const cardToCharge = user.savedPaymentMethods.find(pm => pm.paymentMethodId === paymentMethodId);
-                    if (!cardToCharge && !paymentMethodId) { // paymentMethodId could be a one-time token
+                    if (!cardToCharge && !paymentMethodId) {
                         throw new AppError_1.default('Payment method ID required for card payment.', 400);
                     }
                     const chargeOpts = {
-                        amount: session.calculatedFee * 100, // To kobo/cents
+                        amount: session.calculatedFee,
                         currency: 'NGN',
-                        // source: paymentMethodId, // This would be the gateway's token for the card
-                        // customerId: user.gatewayCustomerId, // If you store gateway customer IDs
                         email: user.email,
-                        reference: `sess_${session._id}_pay_${paymentRecord._id}`,
-                        metadata: { sessionId: session._id.toString(), userId: user._id.toString() },
+                        reference: `park_${plateNumber}_${session.id}_${paymentRecord.id}`,
+                        metadata: {
+                            sessionId: session.id,
+                            userId: user.id,
+                            plateNumber: plateNumber
+                        },
                     };
                     const gwResult = yield payment_gateway_1.PaymentGatewayService.chargeCard(chargeOpts);
                     paymentResult = gwResult;
@@ -204,25 +199,21 @@ class ParkingService {
                 paymentRecord.status = finalPaymentStatus;
                 paymentRecord.processedAt = new Date();
                 yield paymentRecord.save();
-                session.paymentId = paymentRecord._id;
-                session.status = finalPaymentStatus === common_1.PaymentStatus.SUCCESSFUL ? common_1.ParkingSessionStatus.COMPLETED : common_1.ParkingSessionStatus.PENDING_PAYMENT; // Revert if failed
+                session.paymentId = paymentRecord.id;
+                session.status = finalPaymentStatus === common_1.PaymentStatus.SUCCESSFUL ? common_1.ParkingSessionStatus.COMPLETED : common_1.ParkingSessionStatus.PENDING_PAYMENT;
             }
             catch (error) {
-                session.status = common_1.ParkingSessionStatus.PENDING_PAYMENT; // Error occurred, user might need to retry
+                session.status = common_1.ParkingSessionStatus.PENDING_PAYMENT;
                 paymentRecord.status = common_1.PaymentStatus.FAILED;
                 if (error instanceof AppError_1.default)
                     paymentMessage = error.message;
                 else
                     paymentMessage = "An unexpected error occurred during payment processing.";
                 yield paymentRecord.save();
-                // Rethrow or handle gracefully
             }
             finally {
                 yield session.save();
             }
-            // if (finalPaymentStatus !== PaymentStatus.SUCCESSFUL) {
-            //     throw new AppError(paymentMessage, 402); // 402 Payment Required
-            // }
             return { session, paymentResult, message: finalPaymentStatus === common_1.PaymentStatus.SUCCESSFUL ? "Payment successful. Session ended." : paymentMessage };
         });
     }

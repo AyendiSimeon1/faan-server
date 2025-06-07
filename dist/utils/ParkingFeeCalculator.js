@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.ParkingFeeCalculator = exports.VehicleType = void 0;
+exports.normalizePlateNumber = exports.ParkingFeeCalculator = exports.VehicleType = void 0;
 var VehicleType;
 (function (VehicleType) {
     VehicleType["MOTORCYCLE"] = "motorcycle";
@@ -61,4 +61,10 @@ ParkingFeeCalculator.BASE_RATES = {
 };
 ParkingFeeCalculator.GRACE_PERIOD_MINS = 15;
 ParkingFeeCalculator.HOURS_IN_DAY = 24;
+// Utility function to normalize plate numbers
+const normalizePlateNumber = (plateNumber) => {
+    // Remove all whitespace and convert to uppercase
+    return plateNumber.replace(/\s+/g, '').toUpperCase();
+};
+exports.normalizePlateNumber = normalizePlateNumber;
 //# sourceMappingURL=ParkingFeeCalculator.js.map
