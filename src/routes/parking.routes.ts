@@ -25,7 +25,7 @@ parkingRouter.post('/qr-code/validate', protect, validateParkingQR);
 // Parking session management - Modern API
 parkingRouter.post('/session/start/qr', protect, startSessionByQr);
 parkingRouter.post('/session/start/plate', protect, startSessionByPlate);
-parkingRouter.post('/session/:plateNumber/end', protect, endSessionAndPay);
+parkingRouter.put('/session/:plateNumber/end', protect, endSessionAndPay);
 parkingRouter.get('/sessions/history', protect, getParkingHistory);
 
 // Legacy endpoints - to be deprecated
