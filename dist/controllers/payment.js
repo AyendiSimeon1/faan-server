@@ -22,7 +22,7 @@ const handlePaystackWebhook = (req, res) => __awaiter(void 0, void 0, void 0, fu
         throw new Error('Paystack secret key is not configured');
     }
     const hash = crypto_1.default
-        .createHmac('sha512', config_1.config.PAYSTACK_SECRET_KEY)
+        .createHmac('sha512', 'sk_test_97e94ee550b9583d662dde51107b3a915b696872')
         .update(JSON.stringify(req.body))
         .digest('hex');
     if (hash !== req.headers['x-paystack-signature']) {

@@ -10,7 +10,7 @@ export const handlePaystackWebhook = async (req: Request, res: Response) => {
   }
 
   const hash = crypto
-    .createHmac('sha512', config.PAYSTACK_SECRET_KEY)
+    .createHmac('sha512', 'sk_test_97e94ee550b9583d662dde51107b3a915b696872')
     .update(JSON.stringify(req.body))
     .digest('hex');
 
