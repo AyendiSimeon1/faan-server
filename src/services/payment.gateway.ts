@@ -24,7 +24,7 @@ export class PaymentGatewayService {
   private static paystackApi = axios.create({
     baseURL: PAYSTACK_BASE_URL,
     headers: {
-      Authorization: `Bearer ${config.PAYSTACK_SECRET_KEY}`,
+      Authorization: `Bearer sk_test_97e94ee550b9583d662dde51107b3a915b696872`,
       'Content-Type': 'application/json'
     }
   });
