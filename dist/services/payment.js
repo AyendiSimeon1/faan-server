@@ -61,23 +61,31 @@ const verifyPayment = (reference) => __awaiter(void 0, void 0, void 0, function*
     try {
         const response = yield axios_1.default.get(`${PAYSTACK_BASE_URL}/transaction/verify/${reference}`, {
             headers: {
-                Authorization: `Bearer ${PAYSTACK_SECRET_KEY}`
+                Authorization: `Bearer sk_test_97e94ee550b9583d662dde51107b3a915b696872`
             }
         });
-        const { status } = response.data.data; // Update payment record
-        const payment = yield payments.findOneAndUpdate({ reference }, {
+        console.log('Paystack response:', response.data);
+        const { status } = response.data.data;
+        // Update payment record - use gatewayReference instead of reference
+        const payment = yield payments.findOneAndUpdate({ gatewayReference: reference }, // ✅ Correct field name
+        {
             $set: {
                 status: status === 'success' ? 'COMPLETED' : 'FAILED',
-                metadata: response.data.data,
+                gatewayResponse: response.data.data, // Store full response
+                processedAt: new Date(), // When payment was processed
                 updatedAt: new Date()
             }
-        }, { returnDocument: 'after' });
+        }, {
+            returnDocument: 'after',
+        });
+        console.log('Updated payment:', payment);
         if (!payment) {
+            console.error(`Payment not found for reference: ${reference}`);
             throw new Error('Payment record not found');
         }
         // If payment successful, update parking session
         if (status === 'success') {
-            yield parkingSessions.updateOne({ _id: payment.parkingSessionId }, {
+            yield parkingSessions.updateOne({ _id: response.data.data.metadata.sessionId }, {
                 $set: {
                     paid: true,
                     updatedAt: new Date()

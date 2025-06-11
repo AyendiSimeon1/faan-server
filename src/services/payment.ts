@@ -2,7 +2,7 @@ import axios from "axios";
 import { ObjectId } from "mongodb";
 import { config } from "../config";
 import mongoose from 'mongoose';
-
+import PaymentModel from '../models/Payment';
 interface Payment {
     _id?: ObjectId;
     amount: number;
@@ -85,33 +85,43 @@ export const verifyPayment = async (reference: string) => {
       `${PAYSTACK_BASE_URL}/transaction/verify/${reference}`,
       {
         headers: {
-          Authorization: `Bearer ${PAYSTACK_SECRET_KEY}`
+          Authorization: `Bearer sk_test_97e94ee550b9583d662dde51107b3a915b696872`
         }
       }
     );
+    
+    console.log('Paystack response:', response.data);
+    const { status } = response.data.data;
 
-    const { status } = response.data.data;    // Update payment record
+    // Update payment record - use gatewayReference instead of reference
     const payment = await payments.findOneAndUpdate(
-      { reference },
-      { 
+      { gatewayReference: reference }, // ✅ Correct field name
+      {
         $set: {
-          status: status === 'success' ? 'COMPLETED' : 'FAILED',
-          metadata: response.data.data,
+          status: status === 'success' ? 'COMPLETED' : 'FAILED', 
+          gatewayResponse: response.data.data, // Store full response
+          processedAt: new Date(), // When payment was processed
           updatedAt: new Date()
         }
       },
-      { returnDocument: 'after' }
+      { 
+        returnDocument: 'after',
+       
+      }
     );
 
+    console.log('Updated payment:', payment);
+
     if (!payment) {
+      console.error(`Payment not found for reference: ${reference}`);
       throw new Error('Payment record not found');
     }
 
     // If payment successful, update parking session
     if (status === 'success') {
       await parkingSessions.updateOne(
-        { _id: payment.parkingSessionId },
-        { 
+        { _id: response.data.data.metadata.sessionId },
+        {
           $set: {
             paid: true,
             updatedAt: new Date()
@@ -121,7 +131,11 @@ export const verifyPayment = async (reference: string) => {
     }
 
     return payment;
-  } catch (error) {
+  } catch (error: any) {
+   
+    
+    
+    
     throw new Error('Failed to verify payment');
   }
 };
