@@ -10,7 +10,7 @@ import {
 const paymentRouter = Router();
 
 paymentRouter.post('/webhook', handlePaystackWebhook);
-paymentRouter.get('/verify/:reference', protect, verifyPaymentStatus);
+paymentRouter.put('/verify/:reference', protect, verifyPaymentStatus);
 paymentRouter.get('/history', getUserPaymentHistory);
 paymentRouter.post('/refund/:reference', protect, requestRefund);
 
