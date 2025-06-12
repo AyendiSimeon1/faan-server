@@ -99,7 +99,7 @@ class AuthService {
                 password: password_field,
                 registrationLocation,
                 role: common_1.UserRole.USER,
-                isVerified: false,
+                isVerified: true,
             });
             // Create a wallet for the new user
             const wallet = yield Wallet_1.default.create({ userId: newUser._id, balance: 0, currency: 'NGN' });

@@ -86,7 +86,7 @@ export class AuthService {
       password: password_field,
       registrationLocation,
       role: UserRole.USER,
-      isVerified: false,
+      isVerified: true,
     });
 
     // Create a wallet for the new user
