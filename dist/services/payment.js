@@ -12,11 +12,12 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getPaymentHistory = exports.initiateRefund = exports.verifyPayment = exports.createPaymentSession = void 0;
+exports.getAllPayments = exports.getPaymentHistory = exports.initiateRefund = exports.verifyPayment = exports.createPaymentSession = void 0;
 const axios_1 = __importDefault(require("axios"));
 const mongodb_1 = require("mongodb");
 const config_1 = require("../config");
 const mongoose_1 = __importDefault(require("mongoose"));
+const Payment_1 = __importDefault(require("../models/Payment"));
 // const payments = db.collection<Payment>('payments');
 // const parkingSessions = db.collection<ParkingSession>('parkingSessions');
 // import axios from 'axios';
@@ -128,30 +129,72 @@ const initiateRefund = (reference, amount) => __awaiter(void 0, void 0, void 0, 
 });
 exports.initiateRefund = initiateRefund;
 const getPaymentHistory = (userId) => __awaiter(void 0, void 0, void 0, function* () {
-    const userPayments = yield payments
-        .aggregate([
-        {
-            $lookup: {
-                from: 'parkingSessions',
-                localField: 'parkingSessionId',
-                foreignField: '_id',
-                as: 'parkingSession'
-            }
-        },
-        {
-            $match: {
-                'parkingSession.userId': new mongodb_1.ObjectId(userId)
-            }
-        },
-        {
-            $sort: { createdAt: -1 }
-        },
-        {
-            $unwind: '$parkingSession'
-        }
-    ])
-        .toArray();
-    return userPayments;
+    console.log('i am the user id i got', userId);
+    // try {
+    if (!mongodb_1.ObjectId.isValid(userId)) {
+        console.error('Invalid userId provided:', userId);
+        return [];
+    }
+    try {
+        // const userPayments = await payments
+        //   .aggregate([
+        //     {
+        //       $lookup: {
+        //         from: 'parkingSessions',
+        //         localField: 'parkingSessionId',
+        //         foreignField: '_id',
+        //         as: 'parkingSession',
+        //       },
+        //     },
+        //     {
+        //       $match: {
+        //         'parkingSession.userId': new ObjectId(userId),
+        //       },
+        //     },
+        //     {
+        //       $sort: { createdAt: -1 },
+        //     },
+        //   ])
+        //   .toArray();
+        //   console.log('the user payment', userPayments);
+        // return userPayments;
+        const userPayments = yield Payment_1.default
+            .find({ userId: new mongoose_1.default.Types.ObjectId(userId) })
+            .populate('parkingSessionId')
+            .sort({ createdAt: -1 });
+        console.log('the user payment', userPayments);
+        return userPayments;
+    }
+    catch (error) {
+        console.log('the error', error);
+    }
+    // } catch (error) {
+    //   console.error('Error fetching payment history:', error);
+    //   return [];
 });
 exports.getPaymentHistory = getPaymentHistory;
+const getAllPayments = () => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const allPayments = yield payments.aggregate([
+            {
+                $lookup: {
+                    from: 'parkingSessions', // The collection name for parking sessions
+                    localField: 'parkingSessionId',
+                    foreignField: '_id',
+                    as: 'parkingSession',
+                },
+            },
+            {
+                $sort: { createdAt: -1 }, // Sort by creation date, newest first
+            },
+        ]).toArray();
+        console.log('All payments fetched:', allPayments.length);
+        return allPayments;
+    }
+    catch (error) {
+        console.error('Error fetching all payments:', error);
+        return [];
+    }
+});
+exports.getAllPayments = getAllPayments;
 //# sourceMappingURL=payment.js.map

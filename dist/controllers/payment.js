@@ -12,7 +12,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.requestRefund = exports.getUserPaymentHistory = exports.verifyPaymentStatus = exports.handlePaystackWebhook = void 0;
+exports.requestRefund = exports.getAllPaymentsController = exports.getUserPaymentHistory = exports.verifyPaymentStatus = exports.handlePaystackWebhook = void 0;
 const payment_1 = require("../services/payment");
 // import { ApiError } from '../utils/AppError';
 const crypto_1 = __importDefault(require("crypto"));
@@ -53,6 +53,7 @@ const getUserPaymentHistory = (req, res) => __awaiter(void 0, void 0, void 0, fu
         throw new Error('User not authenticated');
     }
     const userId = req.user.id;
+    console.log('i am the user id', userId);
     const payments = yield (0, payment_1.getPaymentHistory)(userId);
     res.json({
         status: 'success',
@@ -60,6 +61,25 @@ const getUserPaymentHistory = (req, res) => __awaiter(void 0, void 0, void 0, fu
     });
 });
 exports.getUserPaymentHistory = getUserPaymentHistory;
+const getAllPaymentsController = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const payments = yield (0, payment_1.getAllPayments)();
+        res.json({
+            status: 'success',
+            data: payments,
+            results: payments.length, // Optional: useful for clients
+        });
+    }
+    catch (error) {
+        console.error('Error in getAllPaymentsController:', error);
+        res.status(500).json({
+            status: 'error',
+            message: 'Failed to fetch all payments',
+            error: error, // Provide error message for debugging
+        });
+    }
+});
+exports.getAllPaymentsController = getAllPaymentsController;
 const requestRefund = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const { reference } = req.params;
     const { amount } = req.body;

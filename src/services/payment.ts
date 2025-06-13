@@ -181,29 +181,77 @@ export const initiateRefund = async (reference: string, amount?: number) => {
 };
 
 export const getPaymentHistory = async (userId: string) => {
-  const userPayments = await payments
-    .aggregate([
+  console.log('i am the user id i got', userId);
+
+  // try {
+    if (!ObjectId.isValid(userId)) {
+      console.error('Invalid userId provided:', userId);
+      return [];
+    }
+    try {
+
+    
+    // const userPayments = await payments
+    //   .aggregate([
+    //     {
+    //       $lookup: {
+    //         from: 'parkingSessions',
+    //         localField: 'parkingSessionId',
+    //         foreignField: '_id',
+    //         as: 'parkingSession',
+    //       },
+    //     },
+    //     {
+    //       $match: {
+    //         'parkingSession.userId': new ObjectId(userId),
+    //       },
+    //     },
+    //     {
+    //       $sort: { createdAt: -1 },
+    //     },
+    //   ])
+    //   .toArray();
+    //   console.log('the user payment', userPayments);
+    // return userPayments;
+
+    const userPayments = await PaymentModel
+      .find({ userId: new mongoose.Types.ObjectId(userId) })
+      .populate('parkingSessionId')
+      .sort({ createdAt: -1 });
+
+    console.log('the user payment', userPayments);
+    return userPayments;
+    } catch (error) {
+      console.log('the error', error);
+    }
+  // } catch (error) {
+  //   console.error('Error fetching payment history:', error);
+  //   return [];
+  }
+
+
+
+
+export const getAllPayments = async () => {
+  try {
+    const allPayments = await payments.aggregate([
       {
         $lookup: {
-          from: 'parkingSessions',
+          from: 'parkingSessions', // The collection name for parking sessions
           localField: 'parkingSessionId',
           foreignField: '_id',
-          as: 'parkingSession'
-        }
+          as: 'parkingSession',
+        },
       },
       {
-        $match: {
-          'parkingSession.userId': new ObjectId(userId)
-        }
+        $sort: { createdAt: -1 }, // Sort by creation date, newest first
       },
-      {
-        $sort: { createdAt: -1 }
-      },
-      {
-        $unwind: '$parkingSession'
-      }
-    ])
-    .toArray();
+    ]).toArray();
 
-  return userPayments;
+    console.log('All payments fetched:', allPayments.length);
+    return allPayments;
+  } catch (error) {
+    console.error('Error fetching all payments:', error);
+    return [];
+  }
 };

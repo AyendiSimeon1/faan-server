@@ -5,13 +5,15 @@ import {
   verifyPaymentStatus,
   getUserPaymentHistory,
   requestRefund,
+  getAllPaymentsController
 } from '../controllers/payment';
 
 const paymentRouter = Router();
 
 paymentRouter.post('/webhook', handlePaystackWebhook);
 paymentRouter.put('/verify/:reference', protect, verifyPaymentStatus);
-paymentRouter.get('/history', getUserPaymentHistory);
+paymentRouter.get('/history', protect, getUserPaymentHistory);
 paymentRouter.post('/refund/:reference', protect, requestRefund);
-
+paymentRouter.get('/all-payments', protect, getAllPaymentsController);
 export default paymentRouter;
+

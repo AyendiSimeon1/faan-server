@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { verifyPayment, getPaymentHistory, initiateRefund } from '../services/payment';
+import { verifyPayment, getPaymentHistory, initiateRefund, getAllPayments } from '../services/payment';
 // import { ApiError } from '../utils/AppError';
 import crypto from 'crypto';
 import { config } from '../config';
@@ -47,12 +47,34 @@ export const getUserPaymentHistory = async (req: any, res: any) => {
     throw new Error('User not authenticated');
   }
   const userId = req.user.id;
+  console.log('i am the user id', userId);
   const payments = await getPaymentHistory(userId);
 
   res.json({
     status: 'success',
     data: payments
   });
+};
+
+export const getAllPaymentsController = async (req: any, res: any) => {
+  try {
+  
+
+    const payments = await getAllPayments();
+
+    res.json({
+      status: 'success',
+      data: payments,
+      results: payments.length, // Optional: useful for clients
+    });
+  } catch (error) {
+    console.error('Error in getAllPaymentsController:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to fetch all payments',
+      error: error, // Provide error message for debugging
+    });
+  }
 };
 
 export const requestRefund = async (req: Request, res: Response) => {
