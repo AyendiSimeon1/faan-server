@@ -95,7 +95,7 @@ export class ParkingService {
     return session;
   }
 
-  static async endSessionAndPay(dto: EndSessionDto, user: IUser): Promise<{ session: IParkingSession; paymentResult: any; message: string }> {
+  static async endSessionAndPay(dto: EndSessionDto, user?: IUser): Promise<{ session: IParkingSession; paymentResult: any; message: string }> {
     const { plateNumber, paymentMethodId, paymentMethodType } = dto;
     const normalizedPlate = normalizePlateNumber(plateNumber);
 
@@ -109,8 +109,8 @@ export class ParkingService {
       throw new AppError('No active parking session found for this vehicle.', 404);
     }
 
-    // Check authorization if the session belongs to a user
-    if (session.userId && session.userId.toString() !== user.id) {
+    // Only check user authorization if user is present
+    if (user && session.userId && session.userId.toString() !== user.id) {
       throw new AppError('You are not authorized to end this session.', 403);
     }
 
@@ -132,8 +132,16 @@ export class ParkingService {
     let paymentMessage = "Payment processing initiated.";
     let finalPaymentStatus = PaymentStatus.PENDING;
 
+    // Only allow wallet payment if user is present
+    if (!user && paymentMethodType === 'wallet') {
+      throw new AppError('Wallet payment requires login. Please use card payment.', 401);
+    }
+
+    // For guest/anonymous, do not require email for card payments
+    let payerEmail = user ? user.email : (dto as any).email || '';
+
     const paymentRecord = await PaymentModel.create({
-        userId: user.id,
+        userId: user ? user.id : undefined,
         parkingSessionId: session.id,
         amount: session.calculatedFee,
         currency: 'NGN',
@@ -143,7 +151,7 @@ export class ParkingService {
 
     try {
         if (paymentMethodType === 'wallet') {
-            const wallet = await WalletModel.findOne({ userId: user.id });
+            const wallet = await WalletModel.findOne({ userId: user!.id });
             if (!wallet || wallet.balance < session.calculatedFee) {
                 throw new AppError('Insufficient wallet balance.', 402);
             }
@@ -155,7 +163,7 @@ export class ParkingService {
             // Record wallet transaction
             await WalletTransactionModel.create({
                 walletId: wallet.id,
-                userId: user.id,
+                userId: user!.id,
                 type: WalletTransactionType.PARKING_FEE,
                 amount: -session.calculatedFee,
                 status: PaymentStatus.SUCCESSFUL,
@@ -169,8 +177,8 @@ export class ParkingService {
             paymentRecord.paymentMethodDetails = { provider: 'wallet', walletId: wallet.id };
 
         } else if (paymentMethodType === 'card') {
-            // Find the specific card from user's saved methods or use a token from client
-            const cardToCharge = user.savedPaymentMethods.find(pm => pm.paymentMethodId === paymentMethodId);
+            // For guests, require paymentMethodId/token from client
+            let cardToCharge = user ? user.savedPaymentMethods.find(pm => pm.paymentMethodId === paymentMethodId) : undefined;
             if (!cardToCharge && !paymentMethodId) {
                 throw new AppError('Payment method ID required for card payment.', 400);
             }
@@ -178,11 +186,11 @@ export class ParkingService {
             const chargeOpts = {
                 amount: session.calculatedFee,
                 currency: 'NGN',
-                email: user.email,
+                email: payerEmail,
                 reference: `park_${plateNumber}_${session.id}_${paymentRecord.id}`,
                 metadata: { 
                     sessionId: session.id,
-                    userId: user.id,
+                    userId: user ? user.id : undefined,
                     plateNumber: plateNumber 
                 },
             };
@@ -239,5 +247,11 @@ export class ParkingService {
         currentPage: page, 
         totalPages: Math.ceil(total / limit) 
     };
+  }
+
+  static async getAllEndedSessions(): Promise<IParkingSession[]> {
+    return ParkingSessionModel.find({ status: { $in: [ParkingSessionStatus.COMPLETED, ParkingSessionStatus.ENDED] } })
+      .sort({ exitTime: -1, entryTime: -1 })
+      .populate('paymentId', 'amount paymentMethodType status receiptUrl');
   }
 }

@@ -12,7 +12,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getParkingHistory = exports.endSessionAndPay = exports.getSessionDetails = exports.startSessionByPlate = exports.startSessionByQr = void 0;
+exports.getAllEndedSessions = exports.getParkingHistory = exports.endSessionAndPay = exports.getSessionDetails = exports.startSessionByPlate = exports.startSessionByQr = void 0;
 const asyncHandler_1 = __importDefault(require("../middlewares/asyncHandler"));
 const Parking_1 = require("../services/Parking");
 exports.startSessionByQr = (0, asyncHandler_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
@@ -44,8 +44,8 @@ exports.endSessionAndPay = (0, asyncHandler_1.default)((req, res) => __awaiter(v
         paymentMethodId: req.body.paymentMethodId,
         paymentMethodType: req.body.paymentMethodType
     };
-    const user = req.user; // `protect` middleware ensures user exists
-    const result = yield Parking_1.ParkingService.endSessionAndPay(dto, user);
+    // No authentication required, so do not pass user
+    const result = yield Parking_1.ParkingService.endSessionAndPay(dto, undefined);
     res.status(200).json({ status: 'success', data: result });
 }));
 exports.getParkingHistory = (0, asyncHandler_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
@@ -54,5 +54,10 @@ exports.getParkingHistory = (0, asyncHandler_1.default)((req, res) => __awaiter(
     const limit = parseInt(req.query.limit) || 10;
     const history = yield Parking_1.ParkingService.getParkingHistory(userId, page, limit);
     res.status(200).json({ status: 'success', data: history });
+}));
+exports.getAllEndedSessions = (0, asyncHandler_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    // Fetch all sessions with status COMPLETED or ENDED
+    const sessions = yield Parking_1.ParkingService.getAllEndedSessions();
+    res.status(200).json({ status: 'success', data: sessions, results: sessions.length });
 }));
 //# sourceMappingURL=Parking.js.map

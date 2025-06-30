@@ -114,8 +114,8 @@ class ParkingService {
             if (!session) {
                 throw new AppError_1.default('No active parking session found for this vehicle.', 404);
             }
-            // Check authorization if the session belongs to a user
-            if (session.userId && session.userId.toString() !== user.id) {
+            // Only check user authorization if user is present
+            if (user && session.userId && session.userId.toString() !== user.id) {
                 throw new AppError_1.default('You are not authorized to end this session.', 403);
             }
             session.exitTime = new Date();
@@ -131,8 +131,14 @@ class ParkingService {
             let paymentResult;
             let paymentMessage = "Payment processing initiated.";
             let finalPaymentStatus = common_1.PaymentStatus.PENDING;
+            // Only allow wallet payment if user is present
+            if (!user && paymentMethodType === 'wallet') {
+                throw new AppError_1.default('Wallet payment requires login. Please use card payment.', 401);
+            }
+            // For guest/anonymous, do not require email for card payments
+            let payerEmail = user ? user.email : dto.email || '';
             const paymentRecord = yield Payment_1.default.create({
-                userId: user.id,
+                userId: user ? user.id : undefined,
                 parkingSessionId: session.id,
                 amount: session.calculatedFee,
                 currency: 'NGN',
@@ -164,19 +170,19 @@ class ParkingService {
                     paymentRecord.paymentMethodDetails = { provider: 'wallet', walletId: wallet.id };
                 }
                 else if (paymentMethodType === 'card') {
-                    // Find the specific card from user's saved methods or use a token from client
-                    const cardToCharge = user.savedPaymentMethods.find(pm => pm.paymentMethodId === paymentMethodId);
+                    // For guests, require paymentMethodId/token from client
+                    let cardToCharge = user ? user.savedPaymentMethods.find(pm => pm.paymentMethodId === paymentMethodId) : undefined;
                     if (!cardToCharge && !paymentMethodId) {
                         throw new AppError_1.default('Payment method ID required for card payment.', 400);
                     }
                     const chargeOpts = {
                         amount: session.calculatedFee,
                         currency: 'NGN',
-                        email: user.email,
+                        email: payerEmail,
                         reference: `park_${plateNumber}_${session.id}_${paymentRecord.id}`,
                         metadata: {
                             sessionId: session.id,
-                            userId: user.id,
+                            userId: user ? user.id : undefined,
                             plateNumber: plateNumber
                         },
                     };
@@ -232,6 +238,13 @@ class ParkingService {
                 currentPage: page,
                 totalPages: Math.ceil(total / limit)
             };
+        });
+    }
+    static getAllEndedSessions() {
+        return __awaiter(this, void 0, void 0, function* () {
+            return ParkingModel_1.default.find({ status: { $in: [common_1.ParkingSessionStatus.COMPLETED, common_1.ParkingSessionStatus.ENDED] } })
+                .sort({ exitTime: -1, entryTime: -1 })
+                .populate('paymentId', 'amount paymentMethodType status receiptUrl');
         });
     }
 }

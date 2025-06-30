@@ -37,9 +37,8 @@ export const endSessionAndPay = asyncHandler(async (req: Request, res: Response)
     paymentMethodId: req.body.paymentMethodId,
     paymentMethodType: req.body.paymentMethodType
   };
-  
-  const user = req.user as IUser; // `protect` middleware ensures user exists
-  const result = await ParkingService.endSessionAndPay(dto, user);
+  // No authentication required, so do not pass user
+  const result = await ParkingService.endSessionAndPay(dto, undefined);
   res.status(200).json({ status: 'success', data: result });
 });
 
@@ -49,4 +48,10 @@ export const getParkingHistory = asyncHandler(async (req: Request, res: Response
   const limit = parseInt(req.query.limit as string) || 10;
   const history = await ParkingService.getParkingHistory(userId, page, limit);
   res.status(200).json({ status: 'success', data: history });
+});
+
+export const getAllEndedSessions = asyncHandler(async (req: Request, res: Response) => {
+  // Fetch all sessions with status COMPLETED or ENDED
+  const sessions = await ParkingService.getAllEndedSessions();
+  res.status(200).json({ status: 'success', data: sessions, results: sessions.length });
 });
