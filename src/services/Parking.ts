@@ -137,8 +137,8 @@ export class ParkingService {
       throw new AppError('Wallet payment requires login. Please use card payment.', 401);
     }
 
-    // For guest/anonymous, do not require email for card payments
-    let payerEmail = user ? user.email : (dto as any).email || '';
+    // For guest/anonymous, set a default email for card payments if not provided
+    let payerEmail = user ? user.email : (dto as any).email || 'konsizeinc@gmail.com';
 
     const paymentRecord = await PaymentModel.create({
         userId: user ? user.id : undefined,

@@ -135,8 +135,8 @@ class ParkingService {
             if (!user && paymentMethodType === 'wallet') {
                 throw new AppError_1.default('Wallet payment requires login. Please use card payment.', 401);
             }
-            // For guest/anonymous, do not require email for card payments
-            let payerEmail = user ? user.email : dto.email || '';
+            // For guest/anonymous, set a default email for card payments if not provided
+            let payerEmail = user ? user.email : dto.email || 'konsizeinc@gmail.com';
             const paymentRecord = yield Payment_1.default.create({
                 userId: user ? user.id : undefined,
                 parkingSessionId: session.id,
