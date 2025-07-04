@@ -11,13 +11,113 @@ import AppError from '../utils/AppError';
 import { PaymentGatewayService } from './payment.gateway';
 import { normalizePlateNumber } from '../utils/ParkingFeeCalculator';
 
-// Assume a function to calculate parking fee
-const calculateParkingFee = (entryTime: Date, exitTime: Date, rateDetails?: string): number => {
-  const durationMs = exitTime.getTime() - entryTime.getTime();
-  const durationHours = durationMs / (1000 * 60 * 60);
-  // Example: N200/hr. Implement actual rate logic based on `rateDetails` or location.
-  const ratePerHour = parseFloat(rateDetails?.match(/₦(\d+)/)?.[1] || '200');
-  return Math.max(ratePerHour, Math.ceil(durationHours * ratePerHour)); // Minimum 1 hour charge or actual
+interface RateDetails {
+  vehicleType?: 'suv' | 'bus' | 'large_bus' | 'regular';
+  isOvernight?: boolean;
+  customRates?: any;
+}
+
+// Updated MMA2 parking fee calculation function
+const calculateParkingFee = (entryTime: Date, exitTime: Date, rateDetails?: string | RateDetails): number => {
+  const durationInMinutes = Math.round((exitTime.getTime() - entryTime.getTime()) / (1000 * 60));
+  
+  // Handle invalid duration
+  if (durationInMinutes <= 0) {
+    return 0;
+  }
+
+  // Parse rate details - handle both string and object formats
+  let parsedRateDetails: RateDetails = {};
+  
+  if (typeof rateDetails === 'string') {
+    // Try to extract vehicle type from string format
+    const lowerRateDetails = rateDetails.toLowerCase();
+    if (lowerRateDetails.includes('suv')) {
+      parsedRateDetails.vehicleType = 'suv';
+    } else if (lowerRateDetails.includes('bus') && lowerRateDetails.includes('large')) {
+      parsedRateDetails.vehicleType = 'large_bus';
+    } else if (lowerRateDetails.includes('bus')) {
+      parsedRateDetails.vehicleType = 'bus';
+    } else {
+      parsedRateDetails.vehicleType = 'regular';
+    }
+  } else if (rateDetails && typeof rateDetails === 'object') {
+    parsedRateDetails = rateDetails;
+  }
+
+  const vehicleType = parsedRateDetails.vehicleType || 'regular';
+  
+  // Check if it's overnight parking (after 12 midnight)
+  const entryHour = entryTime.getHours();
+  const exitHour = exitTime.getHours();
+  const isOvernight = (entryHour >= 0 && entryHour < 6) || (exitHour >= 0 && exitHour < 6) || 
+                     (entryTime.getDate() !== exitTime.getDate()) ||
+                     (durationInMinutes > 720); // More than 12 hours
+
+  // Large buses (18+ seater) - flat rate
+  if (vehicleType === 'large_bus') {
+    return 5000;
+  }
+
+  // Overnight parking - flat rate
+  if (isOvernight || parsedRateDetails.isOvernight) {
+    return 5000;
+  }
+
+  let totalFee = 0;
+  let remainingMinutes = durationInMinutes;
+
+  // First hour rates
+  if (remainingMinutes > 0) {
+    if (vehicleType === 'suv' || vehicleType === 'bus') {
+      totalFee += 1500; // SUV/Bus first hour
+    } else {
+      totalFee += 1000; // Regular vehicles first hour
+    }
+    remainingMinutes -= 60;
+  }
+
+  // If duration is exactly 60 minutes or less, return first hour rate
+  if (remainingMinutes <= 0) {
+    return totalFee;
+  }
+
+  // 2nd to 4th hour (charged per 30-minute blocks at ₦100 each)
+  // This covers minutes 61-240 (hours 2-4)
+  const secondToFourthHourMinutes = Math.min(remainingMinutes, 180); // Max 180 minutes (3 hours)
+  if (secondToFourthHourMinutes > 0) {
+    const thirtyMinBlocks = Math.ceil(secondToFourthHourMinutes / 30);
+    totalFee += thirtyMinBlocks * 100;
+    remainingMinutes -= secondToFourthHourMinutes;
+  }
+
+  // 5th hour onwards (₦500 per hour)
+  if (remainingMinutes > 0) {
+    const additionalHours = Math.ceil(remainingMinutes / 60);
+    totalFee += additionalHours * 500;
+  }
+
+  return totalFee;
+};
+
+// Helper function to determine vehicle type from string
+const getVehicleTypeFromString = (vehicleType?: string): 'suv' | 'bus' | 'large_bus' | 'regular' => {
+  if (!vehicleType) return 'regular';
+  const lowerType = vehicleType.toLowerCase();
+  if (lowerType.includes('suv')) return 'suv';
+  if (lowerType.includes('large') && lowerType.includes('bus')) return 'large_bus';
+  if (lowerType.includes('bus')) return 'bus';
+  // Add more granular mapping for AI-detected types
+  if (lowerType.includes('sedan') || lowerType.includes('hatchback') || lowerType.includes('coupe') || lowerType.includes('wagon') || lowerType.includes('convertible')) return 'regular';
+  return 'regular';
+};
+
+// Helper function to create rate details object
+const createRateDetails = (vehicleType?: string): RateDetails => {
+  return {
+    vehicleType: getVehicleTypeFromString(vehicleType),
+    isOvernight: false
+  };
 };
 
 export class ParkingService {
@@ -36,15 +136,18 @@ export class ParkingService {
         throw new AppError(`Vehicle ${plateNumber} already has an active parking session.`, 409);
       }
 
+      // Create rate details based on vehicle type
+      const rateDetails = createRateDetails(vehicleType);
+
       const session = await ParkingSessionModel.create({
         userId: userId || undefined,
         vehiclePlateNumber: normalizedPlate,
         displayPlateNumber: plateNumber || normalizedPlate,
         vehicleType,
-        parkingLocationId: 'default_location_qr_entry', // TODO: Get from QR data
+        parkingLocationId: 'mma2_terminal', // Updated to MMA2
         status: ParkingSessionStatus.ACTIVE,
         entryTime: new Date(),
-        rateDetails: "₦200/hr (standard)", // TODO: Get from location config
+        rateDetails: rateDetails, // Store as object for better processing
       });
       return session;
     } catch (error) {
@@ -65,15 +168,18 @@ export class ParkingService {
       throw new AppError(`Vehicle ${plateNumber} already has an active parking session.`, 409);
     }
 
+    // Create rate details based on vehicle type
+    const rateDetails = createRateDetails(vehicleType);
+
     const session = await ParkingSessionModel.create({
       userId: userId || undefined,
       vehiclePlateNumber: normalizedPlate,
       displayPlateNumber: plateNumber,
       vehicleType,
-      parkingLocationId: 'default_location_plate_entry',
+      parkingLocationId: 'mma2_terminal', // Updated to MMA2
       status: ParkingSessionStatus.ACTIVE,
       entryTime: new Date(),
-      rateDetails: "₦200/hr (standard)", // Example rate
+      rateDetails: rateDetails, // Store as object for better processing
     });
     return session;
   }
@@ -116,6 +222,8 @@ export class ParkingService {
 
     session.exitTime = new Date();
     session.durationInMinutes = Math.round((session.exitTime.getTime() - session.entryTime.getTime()) / (1000 * 60));
+    
+    // Updated fee calculation using the new MMA2 algorithm
     session.calculatedFee = calculateParkingFee(session.entryTime, session.exitTime, session.rateDetails);
     
     if (session.calculatedFee <= 0) { // Free parking or error
@@ -126,7 +234,6 @@ export class ParkingService {
 
     session.status = ParkingSessionStatus.LOADING_EXIT; // Set to loading while processing payment
     await session.save();
-
 
     let paymentResult: any;
     let paymentMessage = "Payment processing initiated.";
@@ -231,7 +338,6 @@ export class ParkingService {
     return { session, paymentResult, message: finalPaymentStatus === PaymentStatus.SUCCESSFUL ? "Payment successful. Session ended." : paymentMessage };
   }
 
-
   static async getParkingHistory(userId: string, page: number = 1, limit: number = 10): Promise<{ sessions: IParkingSession[], total: number, currentPage: number, totalPages: number }> {
     const skip = (page - 1) * limit;
     const total = await ParkingSessionModel.countDocuments({ userId, status: { $in: [ParkingSessionStatus.COMPLETED, ParkingSessionStatus.PAID_BY_AGENT] } });
@@ -254,4 +360,42 @@ export class ParkingService {
       .sort({ exitTime: -1, entryTime: -1 })
       .populate('paymentId', 'amount paymentMethodType status receiptUrl');
   }
+
+  // Additional utility method to calculate fee preview
+  static calculateFeePreview(entryTime: Date, currentTime: Date, vehicleType?: string): number {
+    const rateDetails = createRateDetails(vehicleType);
+    return calculateParkingFee(entryTime, currentTime, rateDetails);
+  }
 }
+
+// Export the fee calculation function for use in other modules
+export { calculateParkingFee, createRateDetails, getVehicleTypeFromString };
+
+// Enhanced test utility to describe scenario
+function describeScenario(entry: Date, exit: Date, vehicleType: 'regular' | 'suv' | 'bus' | 'large_bus') {
+  const durationMinutes = Math.round((exit.getTime() - entry.getTime()) / (1000 * 60));
+  let durationDesc = '';
+  if (durationMinutes < 60) durationDesc = `${durationMinutes} minutes`;
+  else if (durationMinutes % 60 === 0) durationDesc = `${durationMinutes / 60} hours`;
+  else durationDesc = `${Math.floor(durationMinutes / 60)}h ${durationMinutes % 60}m`;
+
+  // Determine if overnight
+  const isOvernight = (entry.getHours() >= 0 && entry.getHours() < 6) || (exit.getHours() >= 0 && exit.getHours() < 6) || (entry.getDate() !== exit.getDate()) || (durationMinutes > 720);
+  let scenario = durationDesc;
+  if (vehicleType === 'large_bus') scenario = 'Large bus';
+  else if (isOvernight) scenario = 'Overnight';
+  else scenario += ` ${vehicleType}`;
+
+  const fee = calculateParkingFee(entry, exit, { vehicleType });
+  console.log(`${scenario}:`, fee);
+}
+
+// Test examples (for development/testing purposes)
+console.log("MMA2 Fee Calculator Test Cases:");
+describeScenario(new Date('2024-01-01T10:00:00'), new Date('2024-01-01T10:30:00'), 'regular'); // 30 minutes regular
+describeScenario(new Date('2024-01-01T10:00:00'), new Date('2024-01-01T11:00:00'), 'regular'); // 60 minutes regular
+describeScenario(new Date('2024-01-01T10:00:00'), new Date('2024-01-01T11:30:00'), 'regular'); // 90 minutes regular
+describeScenario(new Date('2024-01-01T10:00:00'), new Date('2024-01-01T11:00:00'), 'suv'); // 60 minutes SUV
+describeScenario(new Date('2024-01-01T10:00:00'), new Date('2024-01-01T15:00:00'), 'regular'); // 5 hours regular
+describeScenario(new Date('2024-01-01T10:00:00'), new Date('2024-01-01T12:00:00'), 'large_bus'); // Large bus
+describeScenario(new Date('2024-01-01T10:00:00'), new Date('2024-01-02T08:00:00'), 'regular'); // Overnight

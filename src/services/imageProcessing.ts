@@ -2,6 +2,17 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import sharp from 'sharp';
 import AppError from '../utils/AppError';
 
+// Utility to map AI-detected vehicle types to internal types
+export function mapAIVehicleTypeToInternal(type?: string): 'suv' | 'bus' | 'large_bus' | 'regular' {
+  if (!type) return 'regular';
+  const t = type.toLowerCase();
+  if (t.includes('suv')) return 'suv';
+  if (t.includes('large') && t.includes('bus')) return 'large_bus';
+  if (t.includes('bus')) return 'bus';
+  if (t.includes('sedan') || t.includes('hatchback') || t.includes('coupe') || t.includes('wagon') || t.includes('convertible')) return 'regular';
+  return 'regular'; // fallback
+}
+
 // Initialize Gemini AI
 const genAI = new GoogleGenerativeAI('AIzaSyDzVrsvTRLdsVEpDUQwAeKnxSe92POysKo');
 const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
@@ -14,6 +25,7 @@ export class ImageProcessingService {
       model?: string;
       color?: string;
       type?: string;
+      internalType?: 'suv' | 'bus' | 'large_bus' | 'regular';
     };
     confidence: number;
   }> {
@@ -45,7 +57,7 @@ export class ImageProcessingService {
 - Car manufacturer (make)
 - Car model
 - Car color
-- Vehicle type (e.g., SUV, sedan)
+- Vehicle type (e.g., SUV, sedan, hatchback, coupe, bus, large bus, convertible, wagon, etc.)
 
 Respond ONLY with a JSON object in this exact format, nothing else:
 {
@@ -53,7 +65,7 @@ Respond ONLY with a JSON object in this exact format, nothing else:
   "make": "car manufacturer",
   "model": "car model",
   "color": "car color",
-  "type": "vehicle type",
+  "type": "vehicle type (e.g., sedan, suv, bus, large bus, hatchback, coupe, convertible, wagon, etc.)",
   "confidence": 0.95
 }`;
 
@@ -69,7 +81,7 @@ Respond ONLY with a JSON object in this exact format, nothing else:
       // Parse the JSON response
       try {
         // Clean up the response text by removing markdown code blocks
-        const cleanText = text.replace(/```json\n|\```\n|```/g, '').trim();
+        const cleanText = text.replace(/```json\n|```\n|```/g, '').trim();
         console.log('Cleaned text:', cleanText);
 
         const parsedResponse = JSON.parse(cleanText);
@@ -79,13 +91,17 @@ Respond ONLY with a JSON object in this exact format, nothing else:
           throw new Error('Invalid response structure');
         }
 
+        // Map AI vehicle type to internal type
+        const internalType = mapAIVehicleTypeToInternal(parsedResponse.type);
+
         return {
           plateNumber: parsedResponse.plateNumber || '',
           carDetails: {
             make: parsedResponse.make || '',
             model: parsedResponse.model || '',
             color: parsedResponse.color || '',
-            type: parsedResponse.type || ''
+            type: parsedResponse.type || '',
+            internalType
           },
           confidence: typeof parsedResponse.confidence === 'number' ? parsedResponse.confidence : 0.8
         };

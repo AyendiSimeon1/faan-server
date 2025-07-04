@@ -20,7 +20,7 @@ export interface IParkingSession extends Document {
   status: ParkingSessionStatus;
   
   // Cost details
-  rateDetails?: string; // e.g., "N200/hr"
+  rateDetails?: any; // Allow object or string for flexibility
   calculatedFee?: number;
   
   // Payment details
@@ -65,7 +65,7 @@ const ParkingSessionSchema = new Schema<IParkingSession>(
       }
     },
     
-    rateDetails: { type: String },
+    rateDetails: { type: Schema.Types.Mixed }, // Allow object or string
     calculatedFee: { type: Number },
     
     paymentId: { type: Schema.Types.ObjectId, ref: 'Payment' },
