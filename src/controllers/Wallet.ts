@@ -8,13 +8,14 @@ export const topUpWallet = asyncHandler(async (req: Request, res: Response) => {
   const { amount } = req.body;
   const userId = req.user?._id;
   if (!userId) return res.status(401).json({ error: 'Unauthorized' });
-  if (!amount || amount <= 0) return res.status(400).json({ error: 'Invalid amount' });
+  const numericAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
+  if (!numericAmount || numericAmount <= 0) return res.status(400).json({ error: 'Invalid amount' });
 
   let wallet = await WalletModel.findOne({ userId });
   if (!wallet) {
     wallet = new WalletModel({ userId, balance: 0 });
   }
-  wallet.balance += amount;
+  wallet.balance += numericAmount;
   await wallet.save();
   return res.json({ status: 'success', balance: wallet.balance });
 });

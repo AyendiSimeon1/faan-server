@@ -22,13 +22,14 @@ exports.topUpWallet = (0, asyncHandler_1.default)((req, res) => __awaiter(void 0
     const userId = (_a = req.user) === null || _a === void 0 ? void 0 : _a._id;
     if (!userId)
         return res.status(401).json({ error: 'Unauthorized' });
-    if (!amount || amount <= 0)
+    const numericAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
+    if (!numericAmount || numericAmount <= 0)
         return res.status(400).json({ error: 'Invalid amount' });
     let wallet = yield Wallet_1.default.findOne({ userId });
     if (!wallet) {
         wallet = new Wallet_1.default({ userId, balance: 0 });
     }
-    wallet.balance += amount;
+    wallet.balance += numericAmount;
     yield wallet.save();
     return res.json({ status: 'success', balance: wallet.balance });
 }));
