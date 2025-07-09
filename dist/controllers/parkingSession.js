@@ -8,12 +8,16 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.validateParkingQR = exports.endParkingSession = exports.startParkingSession = void 0;
 const parkingSession_1 = require("../services/parkingSession");
 const ParkingFeeCalculator_1 = require("../utils/ParkingFeeCalculator");
 const payment_1 = require("../services/payment");
-const startParkingSession = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+const asyncHandler_1 = __importDefault(require("../middlewares/asyncHandler"));
+exports.startParkingSession = (0, asyncHandler_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const { vehicleType, plateNumber, qrCode, spotId } = req.body;
     // Validate vehicle type
     if (!Object.values(ParkingFeeCalculator_1.VehicleType).includes(vehicleType)) {
@@ -32,16 +36,16 @@ const startParkingSession = (req, res) => __awaiter(void 0, void 0, void 0, func
     });
     return res.status(201).json({
         status: 'success',
+        secureId: session.secureId, // Top-level secureId
         data: session
     });
-});
-exports.startParkingSession = startParkingSession;
-const endParkingSession = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    const { sessionId } = req.params;
+}));
+exports.endParkingSession = (0, asyncHandler_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const { secureId } = req.body;
     if (!req.user) {
         throw new Error('User not authenticated');
     }
-    const session = yield parkingSession_1.ParkingSessionService.endSession(sessionId);
+    const session = yield parkingSession_1.ParkingSessionService.endSession(secureId);
     // Create payment session with Paystack
     const paymentSession = yield (0, payment_1.createPaymentSession)({
         amount: session.totalAmount,
@@ -51,16 +55,13 @@ const endParkingSession = (req, res) => __awaiter(void 0, void 0, void 0, functi
             plateNumber: session.plateNumber
         }
     });
-    res.json({
+    return res.status(200).json({
         status: 'success',
-        data: {
-            session,
-            payment: paymentSession
-        }
+        data: session,
+        paymentSession
     });
-});
-exports.endParkingSession = endParkingSession;
-const validateParkingQR = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+}));
+exports.validateParkingQR = (0, asyncHandler_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const { qrCode } = req.body;
     const session = yield parkingSession_1.ParkingSessionService.getActiveSessionByQR(qrCode);
     if (!session) {
@@ -70,6 +71,5 @@ const validateParkingQR = (req, res) => __awaiter(void 0, void 0, void 0, functi
         status: 'success',
         data: session
     });
-});
-exports.validateParkingQR = validateParkingQR;
+}));
 //# sourceMappingURL=parkingSession.js.map

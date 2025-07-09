@@ -1,7 +1,6 @@
 import mongoose, { Document, Schema, Model } from 'mongoose';
 import { ParkingSessionStatus } from '../types/common';
 
-
 export interface IParkingSession extends Document {
   userId?: mongoose.Types.ObjectId; // Nullable for guest sessions
   vehiclePlateNumber: string; // Normalized plate number (no spaces)
@@ -25,7 +24,7 @@ export interface IParkingSession extends Document {
   
   // Payment details
   paymentId?: mongoose.Types.ObjectId; // Ref to Payment model
-  isAutoDebit: boolean; // Was this session handled by auto-debit?
+  isAutoDebit: boolean; 
 
   // Agent details (if paid by agent)
   paidByAgentId?: mongoose.Types.ObjectId; // Ref to User (Agent)
@@ -33,6 +32,9 @@ export interface IParkingSession extends Document {
 
   // For UI states like "Ready to leave?" loading screen
   uiStateMetadata?: Record<string, any>; 
+
+  // Secure session management
+  secureId: string; // Unique code for session end
 
   createdAt: Date;
   updatedAt: Date;
@@ -47,7 +49,9 @@ const ParkingSessionSchema = new Schema<IParkingSession>(
     
     entryTime: { type: Date, required: true, default: Date.now },
     exitTime: { type: Date },
-    durationInMinutes: { type: Number },    parkingLocationId: { type: String, required: true, default: 'default_location' }, // Could be ObjectId if locations are managed entities
+    durationInMinutes: { type: Number },
+    
+    parkingLocationId: { type: String, required: true, default: 'default_location' }, // Could be ObjectId if locations are managed entities
     parkingSpotIdentifier: { type: String },
 
     qrCodeId: { type: String, unique: true, sparse: true }, // Sparse for optional unique field
@@ -75,6 +79,13 @@ const ParkingSessionSchema = new Schema<IParkingSession>(
     agentNotes: { type: String },
 
     uiStateMetadata: {type: Schema.Types.Mixed},
+
+    // Make secureId not required, but unique when present
+    secureId: { 
+      type: String, 
+      unique: true,
+      sparse: true // This allows multiple null values but unique non-null values
+    },
   },
   { timestamps: true }
 );
@@ -82,6 +93,13 @@ const ParkingSessionSchema = new Schema<IParkingSession>(
 ParkingSessionSchema.index({ userId: 1, status: 1 });
 ParkingSessionSchema.index({ vehiclePlateNumber: 1, status: 1 });
 
+// Pre-save hook to generate secureId if not present - FIXED to use 4-digit generation
+ParkingSessionSchema.pre('save', function(next) {
+  if (!this.secureId) {
+    this.secureId = (Math.floor(1000 + Math.random() * 9000)).toString();
+  }
+  next();
+});
 
 const ParkingSessionModel: Model<IParkingSession> = mongoose.model<IParkingSession>(
   'ParkingSession',

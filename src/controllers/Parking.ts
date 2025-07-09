@@ -30,10 +30,9 @@ export const getSessionDetails = asyncHandler(async (req: Request, res: Response
 });
 
 export const endSessionAndPay = asyncHandler(async (req: Request, res: Response) => {
-  const plateNumber = req.params.plateNumber || req.body.plateNumber;
+  const secureId = req.params.secureId || req.body.secureId;
   const dto: EndSessionDto = {
-    plateNumber,
-    displayPlateNumber: plateNumber, // preserve original format for display
+    secureId,
     paymentMethodId: req.body.paymentMethodId,
     paymentMethodType: req.body.paymentMethodType
   };

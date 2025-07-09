@@ -72,7 +72,7 @@ export class AuthService {
   }
 
   static async signUp(signUpDto: SignUpDto): Promise<AuthResponse> {
-    const { name, email, phoneNumber, password_field, registrationLocation } = signUpDto;
+    const { name, email, phoneNumber, password_field, registrationLocation, role } = signUpDto;
 
     const existingUserByEmail = await UserModel.findOne({ email });
     if (existingUserByEmail) {
@@ -85,7 +85,7 @@ export class AuthService {
       phoneNumber: phoneNumber || undefined,
       password: password_field,
       registrationLocation,
-      role: UserRole.USER,
+      role,
       isVerified: true,
     });
 

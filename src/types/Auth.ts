@@ -4,7 +4,8 @@ export interface SignUpDto {
   name: string;
   email: string;
   phoneNumber?: string; // Made optional
-  password_field: string; // From UI form
+  password_field: string; // From UI
+  role?: string; // Optional, defaults to 'USER' in service
   registrationLocation?: string;
 }
 

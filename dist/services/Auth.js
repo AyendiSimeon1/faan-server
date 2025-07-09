@@ -87,7 +87,7 @@ class AuthService {
     }
     static signUp(signUpDto) {
         return __awaiter(this, void 0, void 0, function* () {
-            const { name, email, phoneNumber, password_field, registrationLocation } = signUpDto;
+            const { name, email, phoneNumber, password_field, registrationLocation, role } = signUpDto;
             const existingUserByEmail = yield User_1.default.findOne({ email });
             if (existingUserByEmail) {
                 throw new AppError_1.default('User with this email already exists', 409);
@@ -98,7 +98,7 @@ class AuthService {
                 phoneNumber: phoneNumber || undefined,
                 password: password_field,
                 registrationLocation,
-                role: common_1.UserRole.USER,
+                role,
                 isVerified: true,
             });
             // Create a wallet for the new user

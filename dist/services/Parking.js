@@ -20,7 +20,6 @@ const WalletTransaction_1 = __importDefault(require("../models/WalletTransaction
 const common_1 = require("../types/common");
 const AppError_1 = __importDefault(require("../utils/AppError"));
 const payment_gateway_1 = require("./payment.gateway");
-const ParkingFeeCalculator_1 = require("../utils/ParkingFeeCalculator");
 // Updated MMA2 parking fee calculation function
 const calculateParkingFee = (entryTime, exitTime, rateDetails) => {
     const durationInMinutes = Math.round((exitTime.getTime() - entryTime.getTime()) / (1000 * 60));
@@ -125,57 +124,43 @@ class ParkingService {
     static startSessionByQr(dto, userId) {
         return __awaiter(this, void 0, void 0, function* () {
             const { vehicleType, plateNumber } = dto;
-            try {
-                // Check for existing active session in this location
-                const normalizedPlate = plateNumber ? (0, ParkingFeeCalculator_1.normalizePlateNumber)(plateNumber) : '';
-                const existingSession = yield ParkingModel_1.default.findOne({
-                    vehiclePlateNumber: normalizedPlate,
-                    status: common_1.ParkingSessionStatus.ACTIVE
-                });
-                if (existingSession) {
-                    throw new AppError_1.default(`Vehicle ${plateNumber} already has an active parking session.`, 409);
-                }
-                // Create rate details based on vehicle type
-                const rateDetails = createRateDetails(vehicleType);
-                const session = yield ParkingModel_1.default.create({
-                    userId: userId || undefined,
-                    vehiclePlateNumber: normalizedPlate,
-                    displayPlateNumber: plateNumber || normalizedPlate,
-                    vehicleType,
-                    parkingLocationId: 'mma2_terminal', // Updated to MMA2
-                    status: common_1.ParkingSessionStatus.ACTIVE,
-                    entryTime: new Date(),
-                    rateDetails: rateDetails, // Store as object for better processing
-                });
-                return session;
-            }
-            catch (error) {
-                throw error;
-            }
-        });
-    }
-    static startSessionByPlate(dto, userId) {
-        return __awaiter(this, void 0, void 0, function* () {
-            const { plateNumber, vehicleType } = dto;
-            const normalizedPlate = (0, ParkingFeeCalculator_1.normalizePlateNumber)(plateNumber);
-            const existingActiveSession = yield ParkingModel_1.default.findOne({
-                vehiclePlateNumber: normalizedPlate,
-                status: common_1.ParkingSessionStatus.ACTIVE,
-            });
-            if (existingActiveSession) {
-                throw new AppError_1.default(`Vehicle ${plateNumber} already has an active parking session.`, 409);
-            }
+            // Generate a unique 4-digit secureId
+            const secureId = (Math.floor(1000 + Math.random() * 9000)).toString();
+            // Check for existing active session for this user (optional, or by plate if you want to keep it)
+            // You may want to allow multiple sessions for different secureIds
             // Create rate details based on vehicle type
             const rateDetails = createRateDetails(vehicleType);
             const session = yield ParkingModel_1.default.create({
                 userId: userId || undefined,
-                vehiclePlateNumber: normalizedPlate,
+                vehiclePlateNumber: plateNumber,
                 displayPlateNumber: plateNumber,
                 vehicleType,
                 parkingLocationId: 'mma2_terminal', // Updated to MMA2
                 status: common_1.ParkingSessionStatus.ACTIVE,
                 entryTime: new Date(),
                 rateDetails: rateDetails, // Store as object for better processing
+                secureId
+            });
+            return session;
+        });
+    }
+    static startSessionByPlate(dto, userId) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const { plateNumber, vehicleType } = dto;
+            // Generate a unique 4-digit secureId
+            const secureId = (Math.floor(1000 + Math.random() * 9000)).toString();
+            // Create rate details based on vehicle type
+            const rateDetails = createRateDetails(vehicleType);
+            const session = yield ParkingModel_1.default.create({
+                userId: userId || undefined,
+                vehiclePlateNumber: plateNumber,
+                displayPlateNumber: plateNumber,
+                vehicleType,
+                parkingLocationId: 'mma2_terminal', // Updated to MMA2
+                status: common_1.ParkingSessionStatus.ACTIVE,
+                entryTime: new Date(),
+                rateDetails: rateDetails, // Store as object for better processing
+                secureId
             });
             return session;
         });
@@ -199,15 +184,14 @@ class ParkingService {
     }
     static endSessionAndPay(dto, user) {
         return __awaiter(this, void 0, void 0, function* () {
-            const { plateNumber, paymentMethodId, paymentMethodType } = dto;
-            const normalizedPlate = (0, ParkingFeeCalculator_1.normalizePlateNumber)(plateNumber);
-            // Find active session by normalized plate number
+            const { secureId, paymentMethodId, paymentMethodType } = dto;
+            // Find active session by secureId
             const session = yield ParkingModel_1.default.findOne({
-                vehiclePlateNumber: normalizedPlate,
+                secureId,
                 status: common_1.ParkingSessionStatus.ACTIVE
             });
             if (!session) {
-                throw new AppError_1.default('No active parking session found for this vehicle.', 404);
+                throw new AppError_1.default('No active parking session found for this secure ID.', 404);
             }
             // Only check user authorization if user is present
             if (user && session.userId && session.userId.toString() !== user.id) {
@@ -257,7 +241,7 @@ class ParkingService {
                         type: common_1.WalletTransactionType.PARKING_FEE,
                         amount: -session.calculatedFee,
                         status: common_1.PaymentStatus.SUCCESSFUL,
-                        description: `Parking fee for vehicle ${plateNumber}`,
+                        description: `Parking fee for session ${secureId}`,
                         relatedParkingSessionId: session.id,
                         relatedPaymentId: paymentRecord.id,
                     });
@@ -275,11 +259,11 @@ class ParkingService {
                         amount: session.calculatedFee,
                         currency: 'NGN',
                         email: payerEmail,
-                        reference: `park_${plateNumber}_${session.id}_${paymentRecord.id}`,
+                        reference: `park_${secureId}_${session.id}_${paymentRecord.id}`,
                         metadata: {
                             sessionId: session.id,
                             userId: user ? user.id : undefined,
-                            plateNumber: plateNumber
+                            secureId: secureId
                         },
                     };
                     const gwResult = yield payment_gateway_1.PaymentGatewayService.chargeCard(chargeOpts);

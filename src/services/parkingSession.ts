@@ -1,6 +1,9 @@
 import { ObjectId, WithId } from 'mongodb';
 import { VehicleType, ParkingSession, ParkingFeeCalculator } from '../utils/ParkingFeeCalculator';
 import { getDB } from '../config/mongodb';
+import crypto from 'crypto';
+import ParkingSessionModel from '../models/ParkingModel';
+import { ParkingSessionStatus } from '../types/common';
 
 interface IParkingSession {
   id: string;
@@ -16,6 +19,7 @@ interface IParkingSession {
   userId?: ObjectId;
   createdAt: Date;
   updatedAt: Date;
+  secureId: string; // Unique code for secure session ending
 }
 
 export interface CreateParkingSessionDto {
@@ -25,100 +29,77 @@ export interface CreateParkingSessionDto {
   spotId?: string;  // Optional for some entry methods
 }
 
-import mongoose from 'mongoose';
-const parkingSessions = mongoose.connection.collection<IParkingSession>('parkingSessions');
-
 export class ParkingSessionService {
-  /**
-   * Start a new parking session
-   */
-  public static async startSession(data: CreateParkingSessionDto): Promise<IParkingSession> {
+  public static async startSession(data: CreateParkingSessionDto): Promise<any> {
     const now = new Date();
-    const sessionData: Omit<IParkingSession, '_id'> = {
-        ...data,
-        entryTime: now,
-        status: 'ACTIVE',
-        createdAt: now,
-        updatedAt: now,
-        id: ''
+    
+    const sessionData: any = {
+      vehiclePlateNumber: data.plateNumber, // map to schema field
+      displayPlateNumber: data.plateNumber, // or format as needed
+      vehicleType: data.vehicleType,
+      entryTime: now,
+      status: ParkingSessionStatus.ACTIVE,
+      createdAt: now,
+      updatedAt: now,
+      // Generate secureId here as a 4-digit string
+      secureId: (Math.floor(1000 + Math.random() * 9000)).toString(),
+      ...(data.qrCode && { qrCodeId: data.qrCode }),
+      ...(data.spotId && { parkingSpotIdentifier: data.spotId })
     };
-
-    const result = await parkingSessions.insertOne(sessionData);
-
-    return {
-      _id: result.insertedId,
-      ...sessionData
-    };
+    
+    console.log('Creating ParkingSession with data:', sessionData); // Debug log
+    const sessionDoc = await ParkingSessionModel.create(sessionData);
+    
+    // Return plain object with all required fields including auto-generated secureId
+    return sessionDoc.toObject();
   }
 
   /**
    * End a parking session and calculate fee
    */
-  public static async endSession(sessionId: string): Promise<IParkingSession> {
+  public static async endSession(secureId: string): Promise<any> {
     const now = new Date();
     
-    // First, get the current session
-    const session = await parkingSessions.findOne({ 
-      _id: new ObjectId(sessionId),
-      status: 'ACTIVE'
+    // Find session by secureId and status
+    const session = await ParkingSessionModel.findOne({ 
+      secureId,
+      status: ParkingSessionStatus.ACTIVE
     });
-
+    
     if (!session) {
       throw new Error('Active parking session not found');
     }
-
+    
     // Update session with exit time
-    const updatedSession = await parkingSessions.findOneAndUpdate(
-      { _id: new ObjectId(sessionId) },
-      { 
-        $set: {
-          exitTime: now,
-          status: 'ENDED',
-          updatedAt: now
-        }
-      },
-      { returnDocument: 'after' }
-    );
-
-    if (!updatedSession) {
-      throw new Error('Failed to update parking session');
-    }
-
+    session.exitTime = now;
+    session.status = ParkingSessionStatus.ENDED;
+    session.updatedAt = now;
+    await session.save();
+    
     // Calculate fee
     const parkingSession: ParkingSession = {
-      vehicleType: updatedSession.vehicleType,
-      entryTime: updatedSession.entryTime,
+      vehicleType: session.vehicleType as VehicleType,
+      entryTime: session.entryTime,
       exitTime: now
     };
-
+    
     const fee = ParkingFeeCalculator.calculateFee(parkingSession);
-
-    // Update session with fee
-    const finalSession = await parkingSessions.findOneAndUpdate(
-      { _id: new ObjectId(sessionId) },
-      { 
-        $set: {
-          totalAmount: fee,
-          updatedAt: now
-        }
-      },
-      { returnDocument: 'after' }
-    );
-
-    if (!finalSession) {
-      throw new Error('Failed to update parking session with fee');
-    }
-
-    return finalSession;
+    
+    // Use calculatedFee field as per schema
+    session.calculatedFee = fee;
+    session.updatedAt = now;
+    await session.save();
+    
+    return session.toObject();
   }
 
   /**
    * Get active session by plate number
    */
   public static async getActiveSessionByPlate(plateNumber: string): Promise<IParkingSession | null> {
-    return await parkingSessions.findOne({
-      plateNumber,
-      status: 'ACTIVE'
+    return await ParkingSessionModel.findOne({
+      vehiclePlateNumber: plateNumber,
+      status: ParkingSessionStatus.ACTIVE
     });
   }
 
@@ -126,9 +107,9 @@ export class ParkingSessionService {
    * Get active session by QR code
    */
   public static async getActiveSessionByQR(qrCode: string): Promise<IParkingSession | null> {
-    return await parkingSessions.findOne({
-      qrCode,
-      status: 'ACTIVE'
+    return await ParkingSessionModel.findOne({
+      qrCodeId: qrCode,
+      status: ParkingSessionStatus.ACTIVE
     });
   }
 }

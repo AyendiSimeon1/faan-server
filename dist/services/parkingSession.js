@@ -13,65 +13,53 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ParkingSessionService = void 0;
-const mongodb_1 = require("mongodb");
 const ParkingFeeCalculator_1 = require("../utils/ParkingFeeCalculator");
-const mongoose_1 = __importDefault(require("mongoose"));
-const parkingSessions = mongoose_1.default.connection.collection('parkingSessions');
+const ParkingModel_1 = __importDefault(require("../models/ParkingModel"));
+const common_1 = require("../types/common");
 class ParkingSessionService {
-    /**
-     * Start a new parking session
-     */
     static startSession(data) {
         return __awaiter(this, void 0, void 0, function* () {
             const now = new Date();
-            const sessionData = Object.assign(Object.assign({}, data), { entryTime: now, status: 'ACTIVE', createdAt: now, updatedAt: now, id: '' });
-            const result = yield parkingSessions.insertOne(sessionData);
-            return Object.assign({ _id: result.insertedId }, sessionData);
+            const sessionData = Object.assign(Object.assign({ vehiclePlateNumber: data.plateNumber, displayPlateNumber: data.plateNumber, vehicleType: data.vehicleType, entryTime: now, status: common_1.ParkingSessionStatus.ACTIVE, createdAt: now, updatedAt: now, 
+                // Generate secureId here as a 4-digit string
+                secureId: (Math.floor(1000 + Math.random() * 9000)).toString() }, (data.qrCode && { qrCodeId: data.qrCode })), (data.spotId && { parkingSpotIdentifier: data.spotId }));
+            console.log('Creating ParkingSession with data:', sessionData); // Debug log
+            const sessionDoc = yield ParkingModel_1.default.create(sessionData);
+            // Return plain object with all required fields including auto-generated secureId
+            return sessionDoc.toObject();
         });
     }
     /**
      * End a parking session and calculate fee
      */
-    static endSession(sessionId) {
+    static endSession(secureId) {
         return __awaiter(this, void 0, void 0, function* () {
             const now = new Date();
-            // First, get the current session
-            const session = yield parkingSessions.findOne({
-                _id: new mongodb_1.ObjectId(sessionId),
-                status: 'ACTIVE'
+            // Find session by secureId and status
+            const session = yield ParkingModel_1.default.findOne({
+                secureId,
+                status: common_1.ParkingSessionStatus.ACTIVE
             });
             if (!session) {
                 throw new Error('Active parking session not found');
             }
             // Update session with exit time
-            const updatedSession = yield parkingSessions.findOneAndUpdate({ _id: new mongodb_1.ObjectId(sessionId) }, {
-                $set: {
-                    exitTime: now,
-                    status: 'ENDED',
-                    updatedAt: now
-                }
-            }, { returnDocument: 'after' });
-            if (!updatedSession) {
-                throw new Error('Failed to update parking session');
-            }
+            session.exitTime = now;
+            session.status = common_1.ParkingSessionStatus.ENDED;
+            session.updatedAt = now;
+            yield session.save();
             // Calculate fee
             const parkingSession = {
-                vehicleType: updatedSession.vehicleType,
-                entryTime: updatedSession.entryTime,
+                vehicleType: session.vehicleType,
+                entryTime: session.entryTime,
                 exitTime: now
             };
             const fee = ParkingFeeCalculator_1.ParkingFeeCalculator.calculateFee(parkingSession);
-            // Update session with fee
-            const finalSession = yield parkingSessions.findOneAndUpdate({ _id: new mongodb_1.ObjectId(sessionId) }, {
-                $set: {
-                    totalAmount: fee,
-                    updatedAt: now
-                }
-            }, { returnDocument: 'after' });
-            if (!finalSession) {
-                throw new Error('Failed to update parking session with fee');
-            }
-            return finalSession;
+            // Use calculatedFee field as per schema
+            session.calculatedFee = fee;
+            session.updatedAt = now;
+            yield session.save();
+            return session.toObject();
         });
     }
     /**
@@ -79,9 +67,9 @@ class ParkingSessionService {
      */
     static getActiveSessionByPlate(plateNumber) {
         return __awaiter(this, void 0, void 0, function* () {
-            return yield parkingSessions.findOne({
-                plateNumber,
-                status: 'ACTIVE'
+            return yield ParkingModel_1.default.findOne({
+                vehiclePlateNumber: plateNumber,
+                status: common_1.ParkingSessionStatus.ACTIVE
             });
         });
     }
@@ -90,9 +78,9 @@ class ParkingSessionService {
      */
     static getActiveSessionByQR(qrCode) {
         return __awaiter(this, void 0, void 0, function* () {
-            return yield parkingSessions.findOne({
-                qrCode,
-                status: 'ACTIVE'
+            return yield ParkingModel_1.default.findOne({
+                qrCodeId: qrCode,
+                status: common_1.ParkingSessionStatus.ACTIVE
             });
         });
     }

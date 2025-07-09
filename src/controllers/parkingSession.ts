@@ -4,8 +4,9 @@ import { VehicleType } from '../utils/ParkingFeeCalculator';
 import { createPaymentSession } from '../services/payment';
 // import { ApiError } from '../utils/ApiError';
 import { IUser } from '../models/User';
+import asyncHandler from '../middlewares/asyncHandler';
 
-export const startParkingSession = async (req: any, res: any) => {
+export const startParkingSession = asyncHandler(async (req: any, res: any) => {
   const { vehicleType, plateNumber, qrCode, spotId } = req.body;
 
   // Validate vehicle type
@@ -27,18 +28,19 @@ export const startParkingSession = async (req: any, res: any) => {
 
   return res.status(201).json({
     status: 'success',
+    secureId: session.secureId, // Top-level secureId
     data: session
   });
-};
+});
 
-export const endParkingSession = async (req: Request, res: Response) => {
-  const { sessionId } = req.params;
+export const endParkingSession = asyncHandler(async (req: Request, res: Response) => {
+  const { secureId } = req.body;
 
   if (!req.user) {
     throw new Error('User not authenticated');
   }
 
-  const session = await ParkingSessionService.endSession(sessionId);
+  const session = await ParkingSessionService.endSession(secureId);
 
   // Create payment session with Paystack
   const paymentSession = await createPaymentSession({
@@ -50,16 +52,14 @@ export const endParkingSession = async (req: Request, res: Response) => {
     }
   });
 
-  res.json({
+  return res.status(200).json({
     status: 'success',
-    data: {
-      session,
-      payment: paymentSession
-    }
+    data: session,
+    paymentSession
   });
-};
+});
 
-export const validateParkingQR = async (req: Request, res: Response) => {
+export const validateParkingQR = asyncHandler(async (req: Request, res: Response) => {
   const { qrCode } = req.body;
   const session = await ParkingSessionService.getActiveSessionByQR(qrCode);
   if (!session) {
@@ -70,4 +70,4 @@ export const validateParkingQR = async (req: Request, res: Response) => {
     status: 'success',
     data: session
   });
-};
+});

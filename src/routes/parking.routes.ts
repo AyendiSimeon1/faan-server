@@ -1,5 +1,6 @@
 import { Router } from 'express';
-import { protect } from '../middlewares/auth';
+import { protect, authorize } from '../middlewares/auth';
+import { UserRole } from '../types/common';
 import {
   startSessionByQr,
   startSessionByPlate,
@@ -20,26 +21,27 @@ import { getAllPaymentsController } from '../controllers/payment';
 
 const parkingRouter = Router();
 
-// QR Code generation and validation
-parkingRouter.post('/qr-code/generate', protect, generateParkingQRCode);
-parkingRouter.post('/qr-code/validate', protect, validateParkingQR);
+parkingRouter.post('/qr-code/generate', protect, authorize(UserRole.ADMIN), generateParkingQRCode);
+parkingRouter.post('/qr-code/validate', protect, authorize(UserRole.ADMIN), validateParkingQR);
 
-// Parking session management - Modern API
-parkingRouter.post('/session/start/qr', protect, startSessionByQr);
-parkingRouter.post('/session/start/plate', protect, startSessionByPlate);
-parkingRouter.put('/session/:plateNumber/end', endSessionAndPay); // No protect middleware
-parkingRouter.get('/sessions/history', protect, getParkingHistory);
 
-// Legacy endpoints - to be deprecated
-parkingRouter.post('/sessions', protect, startParkingSession);
-parkingRouter.post('/sessions/:sessionId/end', protect, endParkingSession);
+parkingRouter.post('/session/start/qr', protect, authorize(UserRole.ADMIN), startSessionByQr);
+parkingRouter.post('/session/start/plate', protect, authorize(UserRole.ADMIN), startSessionByPlate);
+parkingRouter.put('/session/:secureId/end', protect, authorize(UserRole.USER, UserRole.ADMIN), endSessionAndPay); // Add protect before authorize
+parkingRouter.get('/sessions/history', protect, authorize(UserRole.ADMIN), getParkingHistory);
 
-// Vehicle image processing
-parkingRouter.post('/process-image', protect, upload.single('image'), processCarImage);
 
-// Fetch all payments
-parkingRouter.get('/payments/all', getAllPaymentsController);
-// Fetch all ended parking sessions
-parkingRouter.get('/sessions/ended', getAllEndedSessions);
+parkingRouter.post('/sessions/end', protect, authorize(UserRole.USER, UserRole.ADMIN), endParkingSession);
+
+parkingRouter.post('/sessions', protect,  startParkingSession);
+parkingRouter.post('/sessions/:sessionId/end', protect, authorize(UserRole.USER, UserRole.AGENT, UserRole.ADMIN), endParkingSession); // Add protect before authorize
+
+
+parkingRouter.post('/process-image',  upload.single('image'), processCarImage);
+
+
+parkingRouter.get('/payments/all',  getAllPaymentsController);
+
+parkingRouter.get('/sessions/ended',  getAllEndedSessions);
 
 export default parkingRouter;

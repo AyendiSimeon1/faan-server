@@ -13,8 +13,7 @@ export interface StartSessionByPlateDto {
 }
 
 export interface EndSessionDto {
-  plateNumber: string;
-  displayPlateNumber?: string; // Original format for display
+  secureId: string;
   paymentMethodId?: string; // For card payment
   paymentMethodType: 'card' | 'wallet'; // from UI
 }

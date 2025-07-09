@@ -9,7 +9,7 @@ import { ParkingSessionStatus, PaymentStatus, PaymentMethodType, WalletTransacti
 import { StartSessionByQrDto, StartSessionByPlateDto, EndSessionDto } from '../types/Parking';
 import AppError from '../utils/AppError';
 import { PaymentGatewayService } from './payment.gateway';
-import { normalizePlateNumber } from '../utils/ParkingFeeCalculator';
+
 
 interface RateDetails {
   vehicleType?: 'suv' | 'bus' | 'large_bus' | 'regular';
@@ -123,63 +123,42 @@ const createRateDetails = (vehicleType?: string): RateDetails => {
 export class ParkingService {
   static async startSessionByQr(dto: StartSessionByQrDto, userId?: string): Promise<IParkingSession> {
     const { vehicleType, plateNumber } = dto;
-
-    try {
-      // Check for existing active session in this location
-      const normalizedPlate = plateNumber ? normalizePlateNumber(plateNumber) : '';
-      const existingSession = await ParkingSessionModel.findOne({
-        vehiclePlateNumber: normalizedPlate,
-        status: ParkingSessionStatus.ACTIVE
-      });
-
-      if (existingSession) {
-        throw new AppError(`Vehicle ${plateNumber} already has an active parking session.`, 409);
-      }
-
-      // Create rate details based on vehicle type
-      const rateDetails = createRateDetails(vehicleType);
-
-      const session = await ParkingSessionModel.create({
-        userId: userId || undefined,
-        vehiclePlateNumber: normalizedPlate,
-        displayPlateNumber: plateNumber || normalizedPlate,
-        vehicleType,
-        parkingLocationId: 'mma2_terminal', // Updated to MMA2
-        status: ParkingSessionStatus.ACTIVE,
-        entryTime: new Date(),
-        rateDetails: rateDetails, // Store as object for better processing
-      });
-      return session;
-    } catch (error) {
-      throw error;
-    }
-  }
-
-  static async startSessionByPlate(dto: StartSessionByPlateDto, userId?: string): Promise<IParkingSession> {
-    const { plateNumber, vehicleType } = dto;
-    const normalizedPlate = normalizePlateNumber(plateNumber);
-
-    const existingActiveSession = await ParkingSessionModel.findOne({
-      vehiclePlateNumber: normalizedPlate,
-      status: ParkingSessionStatus.ACTIVE,
-    });
-
-    if (existingActiveSession) {
-      throw new AppError(`Vehicle ${plateNumber} already has an active parking session.`, 409);
-    }
-
+    // Generate a unique 4-digit secureId
+    const secureId = (Math.floor(1000 + Math.random() * 9000)).toString();
+    // Check for existing active session for this user (optional, or by plate if you want to keep it)
+    // You may want to allow multiple sessions for different secureIds
     // Create rate details based on vehicle type
     const rateDetails = createRateDetails(vehicleType);
-
     const session = await ParkingSessionModel.create({
       userId: userId || undefined,
-      vehiclePlateNumber: normalizedPlate,
+      vehiclePlateNumber: plateNumber,
       displayPlateNumber: plateNumber,
       vehicleType,
       parkingLocationId: 'mma2_terminal', // Updated to MMA2
       status: ParkingSessionStatus.ACTIVE,
       entryTime: new Date(),
       rateDetails: rateDetails, // Store as object for better processing
+      secureId
+    });
+    return session;
+  }
+
+  static async startSessionByPlate(dto: StartSessionByPlateDto, userId?: string): Promise<IParkingSession> {
+    const { plateNumber, vehicleType } = dto;
+    // Generate a unique 4-digit secureId
+    const secureId = (Math.floor(1000 + Math.random() * 9000)).toString();
+    // Create rate details based on vehicle type
+    const rateDetails = createRateDetails(vehicleType);
+    const session = await ParkingSessionModel.create({
+      userId: userId || undefined,
+      vehiclePlateNumber: plateNumber,
+      displayPlateNumber: plateNumber,
+      vehicleType,
+      parkingLocationId: 'mma2_terminal', // Updated to MMA2
+      status: ParkingSessionStatus.ACTIVE,
+      entryTime: new Date(),
+      rateDetails: rateDetails, // Store as object for better processing
+      secureId
     });
     return session;
   }
@@ -202,17 +181,16 @@ export class ParkingService {
   }
 
   static async endSessionAndPay(dto: EndSessionDto, user?: IUser): Promise<{ session: IParkingSession; paymentResult: any; message: string }> {
-    const { plateNumber, paymentMethodId, paymentMethodType } = dto;
-    const normalizedPlate = normalizePlateNumber(plateNumber);
+    const { secureId, paymentMethodId, paymentMethodType } = dto;
 
-    // Find active session by normalized plate number
+    // Find active session by secureId
     const session = await ParkingSessionModel.findOne({
-      vehiclePlateNumber: normalizedPlate,
+      secureId,
       status: ParkingSessionStatus.ACTIVE
     });
 
     if (!session) {
-      throw new AppError('No active parking session found for this vehicle.', 404);
+      throw new AppError('No active parking session found for this secure ID.', 404);
     }
 
     // Only check user authorization if user is present
@@ -274,7 +252,7 @@ export class ParkingService {
                 type: WalletTransactionType.PARKING_FEE,
                 amount: -session.calculatedFee,
                 status: PaymentStatus.SUCCESSFUL,
-                description: `Parking fee for vehicle ${plateNumber}`,
+                description: `Parking fee for session ${secureId}`,
                 relatedParkingSessionId: session.id,
                 relatedPaymentId: paymentRecord.id,
             });
@@ -294,11 +272,11 @@ export class ParkingService {
                 amount: session.calculatedFee,
                 currency: 'NGN',
                 email: payerEmail,
-                reference: `park_${plateNumber}_${session.id}_${paymentRecord.id}`,
+                reference: `park_${secureId}_${session.id}_${paymentRecord.id}`,
                 metadata: { 
                     sessionId: session.id,
                     userId: user ? user.id : undefined,
-                    plateNumber: plateNumber 
+                    secureId: secureId 
                 },
             };
             const gwResult = await PaymentGatewayService.chargeCard(chargeOpts);

@@ -37,10 +37,9 @@ exports.getSessionDetails = (0, asyncHandler_1.default)((req, res) => __awaiter(
     res.status(200).json({ status: 'success', data: session });
 }));
 exports.endSessionAndPay = (0, asyncHandler_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    const plateNumber = req.params.plateNumber || req.body.plateNumber;
+    const secureId = req.params.secureId || req.body.secureId;
     const dto = {
-        plateNumber,
-        displayPlateNumber: plateNumber, // preserve original format for display
+        secureId,
         paymentMethodId: req.body.paymentMethodId,
         paymentMethodType: req.body.paymentMethodType
     };

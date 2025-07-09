@@ -42,7 +42,8 @@ const ParkingSessionSchema = new mongoose_1.Schema({
     vehicleType: { type: String },
     entryTime: { type: Date, required: true, default: Date.now },
     exitTime: { type: Date },
-    durationInMinutes: { type: Number }, parkingLocationId: { type: String, required: true, default: 'default_location' }, // Could be ObjectId if locations are managed entities
+    durationInMinutes: { type: Number },
+    parkingLocationId: { type: String, required: true, default: 'default_location' }, // Could be ObjectId if locations are managed entities
     parkingSpotIdentifier: { type: String },
     qrCodeId: { type: String, unique: true, sparse: true }, // Sparse for optional unique field
     status: {
@@ -64,9 +65,22 @@ const ParkingSessionSchema = new mongoose_1.Schema({
     paidByAgentId: { type: mongoose_1.Schema.Types.ObjectId, ref: 'User' },
     agentNotes: { type: String },
     uiStateMetadata: { type: mongoose_1.Schema.Types.Mixed },
+    // Make secureId not required, but unique when present
+    secureId: {
+        type: String,
+        unique: true,
+        sparse: true // This allows multiple null values but unique non-null values
+    },
 }, { timestamps: true });
 ParkingSessionSchema.index({ userId: 1, status: 1 });
 ParkingSessionSchema.index({ vehiclePlateNumber: 1, status: 1 });
+// Pre-save hook to generate secureId if not present - FIXED to use 4-digit generation
+ParkingSessionSchema.pre('save', function (next) {
+    if (!this.secureId) {
+        this.secureId = (Math.floor(1000 + Math.random() * 9000)).toString();
+    }
+    next();
+});
 const ParkingSessionModel = mongoose_1.default.model('ParkingSession', ParkingSessionSchema);
 exports.default = ParkingSessionModel;
 //# sourceMappingURL=ParkingModel.js.map
