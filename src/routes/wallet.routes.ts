@@ -5,7 +5,7 @@ import { UserRole } from '../types/common';
 
 const router = Router();
 
-router.post('/topup', protect, authorize(UserRole.USER, UserRole.AGENT), topUpWallet);
-router.get('/balance', protect, authorize(UserRole.USER, UserRole.AGENT), getWalletBalance);
+router.post('/topup', protect, authorize(UserRole.USER, UserRole.AGENT, UserRole.ADMIN), topUpWallet);
+router.get('/balance', protect, authorize(UserRole.USER, UserRole.AGENT, UserRole.ADMIN), getWalletBalance);
 
 export default router;
