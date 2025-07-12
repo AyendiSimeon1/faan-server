@@ -19,7 +19,7 @@ parkingRouter.get('/sessions/history', auth_1.protect, (0, auth_1.authorize)(com
 parkingRouter.post('/sessions/end', auth_1.protect, (0, auth_1.authorize)(common_1.UserRole.USER, common_1.UserRole.AGENT, common_1.UserRole.ADMIN), parkingSession_1.endParkingSession);
 parkingRouter.post('/sessions', auth_1.protect, parkingSession_1.startParkingSession);
 parkingRouter.post('/sessions/:sessionId/end', auth_1.protect, (0, auth_1.authorize)(common_1.UserRole.USER, common_1.UserRole.AGENT, common_1.UserRole.ADMIN), parkingSession_1.endParkingSession); // Add protect before authorize
-parkingRouter.post('/process-image', upload_1.upload.single('image'), (0, auth_1.authorize)(common_1.UserRole.USER, common_1.UserRole.AGENT, common_1.UserRole.ADMIN), ImageProcessing_1.processCarImage);
+parkingRouter.post('/process-image', auth_1.protect, upload_1.upload.single('image'), (0, auth_1.authorize)(common_1.UserRole.USER, common_1.UserRole.AGENT, common_1.UserRole.ADMIN), ImageProcessing_1.processCarImage);
 parkingRouter.get('/payments/all', payment_1.getAllPaymentsController);
 parkingRouter.get('/sessions/ended', Parking_1.getAllEndedSessions);
 exports.default = parkingRouter;
