@@ -70,7 +70,7 @@ const UserSchema = new mongoose_1.Schema({
     phoneNumber: { type: String, required: true, unique: true, trim: true },
     password: { type: String, select: false }, // Not sent by default
     profilePictureUrl: { type: String, trim: true },
-    role: { type: String, enum: Object.values(common_1.UserRole), default: common_1.UserRole.USER },
+    role: { type: String, enum: Object.values(common_1.UserRole), required: true }, // No default, must be provided
     isVerified: { type: Boolean, default: false },
     isActive: { type: Boolean, default: true },
     registrationLocation: { type: String },

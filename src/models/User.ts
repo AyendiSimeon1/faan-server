@@ -66,7 +66,7 @@ const UserSchema = new Schema<IUser>(
     phoneNumber: { type: String, required: true, unique: true, trim: true },
     password: { type: String, select: false }, // Not sent by default
     profilePictureUrl: { type: String, trim: true },
-    role: { type: String, enum: Object.values(UserRole), default: UserRole.USER },
+    role: { type: String, enum: Object.values(UserRole), required: true }, // No default, must be provided
     isVerified: { type: Boolean, default: false },
     isActive: { type: Boolean, default: true },
     registrationLocation: { type: String },

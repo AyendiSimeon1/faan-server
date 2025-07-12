@@ -27,11 +27,11 @@ parkingRouter.post('/qr-code/validate', protect, authorize(UserRole.ADMIN), vali
 
 parkingRouter.post('/session/start/qr', protect, authorize(UserRole.ADMIN), startSessionByQr);
 parkingRouter.post('/session/start/plate', protect, authorize(UserRole.ADMIN), startSessionByPlate);
-parkingRouter.put('/session/:secureId/end', protect, authorize(UserRole.USER, UserRole.ADMIN), endSessionAndPay); // Add protect before authorize
+parkingRouter.put('/session/:secureId/end', protect, endSessionAndPay); // Add protect before authorize
 parkingRouter.get('/sessions/history', protect, authorize(UserRole.ADMIN), getParkingHistory);
 
 
-parkingRouter.post('/sessions/end', protect, authorize(UserRole.USER, UserRole.ADMIN), endParkingSession);
+parkingRouter.post('/sessions/end', protect, authorize(UserRole.USER, UserRole.AGENT, UserRole.ADMIN), endParkingSession);
 
 parkingRouter.post('/sessions', protect,  startParkingSession);
 parkingRouter.post('/sessions/:sessionId/end', protect, authorize(UserRole.USER, UserRole.AGENT, UserRole.ADMIN), endParkingSession); // Add protect before authorize
