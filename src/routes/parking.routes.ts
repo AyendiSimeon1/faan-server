@@ -37,7 +37,7 @@ parkingRouter.post('/sessions', protect,  startParkingSession);
 parkingRouter.post('/sessions/:sessionId/end', protect, authorize(UserRole.USER, UserRole.AGENT, UserRole.ADMIN), endParkingSession); // Add protect before authorize
 
 
-parkingRouter.post('/process-image',  upload.single('image'), processCarImage);
+parkingRouter.post('/process-image',  upload.single('image'), authorize(UserRole.USER, UserRole.AGENT, UserRole.ADMIN), processCarImage);
 
 
 parkingRouter.get('/payments/all',  getAllPaymentsController);
