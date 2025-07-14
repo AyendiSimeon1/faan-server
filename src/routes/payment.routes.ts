@@ -15,6 +15,6 @@ paymentRouter.post('/webhook',  handlePaystackWebhook);
 paymentRouter.put('/verify/:reference', protect,  verifyPaymentStatus);
 paymentRouter.get('/history', protect,  getUserPaymentHistory);
 paymentRouter.post('/refund/:reference', protect,  requestRefund);
-paymentRouter.get('/all-payments', protect,  getAllPaymentsController);
+paymentRouter.get('/all', protect,  getAllPaymentsController);
 export default paymentRouter;
 
