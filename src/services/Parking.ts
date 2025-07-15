@@ -146,7 +146,8 @@ export class ParkingService {
   static async startSessionByPlate(dto: StartSessionByPlateDto, userId?: string): Promise<IParkingSession> {
     const { plateNumber, vehicleType } = dto;
     // Generate a unique 4-digit secureId
-    const secureId = (Math.floor(1000 + Math.random() * 9000)).toString();
+    // const secureId = (Math.floor(1000 + Math.random() * 9000)).toString();
+    const secureId = (Math.floor(100000 + Math.random() * 900000)).toString();
     // Create rate details based on vehicle type
     const rateDetails = createRateDetails(vehicleType);
     const session = await ParkingSessionModel.create({

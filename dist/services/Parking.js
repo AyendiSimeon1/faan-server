@@ -148,7 +148,8 @@ class ParkingService {
         return __awaiter(this, void 0, void 0, function* () {
             const { plateNumber, vehicleType } = dto;
             // Generate a unique 4-digit secureId
-            const secureId = (Math.floor(1000 + Math.random() * 9000)).toString();
+            // const secureId = (Math.floor(1000 + Math.random() * 9000)).toString();
+            const secureId = (Math.floor(100000 + Math.random() * 900000)).toString();
             // Create rate details based on vehicle type
             const rateDetails = createRateDetails(vehicleType);
             const session = yield ParkingModel_1.default.create({

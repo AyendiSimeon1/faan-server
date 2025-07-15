@@ -22,10 +22,9 @@ class ParkingSessionService {
             const now = new Date();
             const sessionData = Object.assign(Object.assign({ vehiclePlateNumber: data.plateNumber, displayPlateNumber: data.plateNumber, vehicleType: data.vehicleType, entryTime: now, status: common_1.ParkingSessionStatus.ACTIVE, createdAt: now, updatedAt: now, 
                 // Generate secureId here as a 4-digit string
-                secureId: (Math.floor(1000 + Math.random() * 9000)).toString() }, (data.qrCode && { qrCodeId: data.qrCode })), (data.spotId && { parkingSpotIdentifier: data.spotId }));
+                secureId: (Math.floor(100000 + Math.random() * 900000)).toString() }, (data.qrCode && { qrCodeId: data.qrCode })), (data.spotId && { parkingSpotIdentifier: data.spotId }));
             console.log('Creating ParkingSession with data:', sessionData); // Debug log
             const sessionDoc = yield ParkingModel_1.default.create(sessionData);
-            // Return plain object with all required fields including auto-generated secureId
             return sessionDoc.toObject();
         });
     }
